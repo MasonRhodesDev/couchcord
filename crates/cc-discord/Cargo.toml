@@ -4,9 +4,18 @@ version = "0.1.0"
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "couchcord Discord local-RPC: framing, parse, voice filter, command building (pure); socket IO is Phase 2"
+description = "couchcord Discord local-RPC: pure protocol + async UnixStream client"
 
 [dependencies]
 cc-core = { path = "../cc-core" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+async-trait = "0.1"
+futures-core = "0.3"
+futures-util = "0.3"
+tokio = { version = "1", features = ["rt", "net", "io-util", "sync", "macros", "time"] }
+tracing = "0.1"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["rt", "rt-multi-thread", "net", "io-util", "sync", "macros", "time"] }
+tempfile = "3"

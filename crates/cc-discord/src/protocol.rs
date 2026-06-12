@@ -47,8 +47,13 @@ pub fn handshake(client_id: ClientId) -> Vec<u8> {
     frame(OP_HANDSHAKE, &json!({ "v": 1, "client_id": client_id.to_string() }))
 }
 
-fn command(cmd: &str, args: Value, nonce: &str) -> Vec<u8> {
+/// Build an arbitrary `op-1` command frame `{cmd, args, nonce}`.
+pub fn frame_command(cmd: &str, args: Value, nonce: &str) -> Vec<u8> {
     frame(OP_FRAME, &json!({ "cmd": cmd, "args": args, "nonce": nonce }))
+}
+
+fn command(cmd: &str, args: Value, nonce: &str) -> Vec<u8> {
+    frame_command(cmd, args, nonce)
 }
 
 pub fn get_guilds(nonce: &str) -> Vec<u8> {
