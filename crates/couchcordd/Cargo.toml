@@ -4,17 +4,20 @@ version = "0.1.0"
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "couchcord daemon: doctor de-risk gate + the composition-root reactor"
+description = "couchcord daemon: doctor de-risk gate, the composition reactor, and the live run loop"
 
 [dependencies]
 cc-core = { path = "../cc-core" }
 cc-menu = { path = "../cc-menu" }
 cc-config = { path = "../cc-config" }
+cc-discord = { path = "../cc-discord" }
+cc-input = { path = "../cc-input" }
+cc-render = { path = "../cc-render" }
 anyhow = "1"
 evdev = "0.12"
 x11rb = "0.13"
 async-trait = "0.1"
-tokio = { version = "1", features = ["rt", "rt-multi-thread", "macros", "sync", "time"] }
-
-[dev-dependencies]
 futures-util = "0.3"
+tokio = { version = "1", features = ["rt", "rt-multi-thread", "macros", "sync", "time"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }

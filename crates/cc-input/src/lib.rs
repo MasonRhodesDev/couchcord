@@ -10,6 +10,9 @@
 //! layer — that template is the actual input gate (ARCHITECTURE §4.1); this is
 //! only the daemon-side reading of the keys it emits.
 
+pub mod source;
+pub use source::EvdevInput;
+
 use cc_core::InputIntent;
 
 /// Heuristic: does this evdev device look like the Steam Input virtual keyboard?
@@ -62,6 +65,26 @@ pub enum KeyName {
     Escape,
     Backspace,
     Tab,
+}
+
+/// Map a raw evdev key to a `KeyName`, or `None` if the action layer doesn't use
+/// it. These are the concrete keys the shipped Steam Input `.vdf` emits — all
+/// gamescope-*unmasked* (the left-Windows key is masked, so `F13` is the chord
+/// signal). The mapping is pure and tested.
+pub fn keyname_for_evdev(key: evdev::Key) -> Option<KeyName> {
+    use evdev::Key;
+    Some(match key {
+        Key::KEY_F13 => KeyName::SignalChord,
+        Key::KEY_UP => KeyName::Up,
+        Key::KEY_DOWN => KeyName::Down,
+        Key::KEY_LEFT => KeyName::Left,
+        Key::KEY_RIGHT => KeyName::Right,
+        Key::KEY_ENTER | Key::KEY_KPENTER => KeyName::Enter,
+        Key::KEY_ESC => KeyName::Escape,
+        Key::KEY_BACKSPACE => KeyName::Backspace,
+        Key::KEY_TAB => KeyName::Tab,
+        _ => return None,
+    })
 }
 
 #[cfg(test)]

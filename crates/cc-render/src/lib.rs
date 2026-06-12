@@ -7,5 +7,8 @@
 //! reused unchanged.
 
 pub mod geometry;
+pub mod paint;
+pub mod window;
 
 pub use geometry::anchor_rect;
+pub use window::X11Overlay;

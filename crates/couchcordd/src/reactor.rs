@@ -9,10 +9,13 @@
 
 use cc_core::{
     Anchor, ConfigSource, DiscordCommand, DiscordEvent, InputIntent, InputSource, NavGuard,
-    OverlayRenderer, RpcClient,
+    OverlayRenderer, RpcClient, VoiceEvent,
 };
 use cc_menu::{MenuEngine, Step};
 use std::collections::VecDeque;
+use tokio::sync::mpsc;
+
+pub mod run;
 
 /// Drives one `MenuEngine` against the boundaries. Generic for testability.
 pub struct Dispatcher<R, I, Rn, C> {
@@ -23,6 +26,9 @@ pub struct Dispatcher<R, I, Rn, C> {
     config: C,
     nav: Option<NavGuard>,
     last_anchor: Anchor,
+    /// When set, voice subscriptions are drained into this sink as
+    /// `DiscordEvent`s for the run loop to feed back in.
+    voice_sink: Option<mpsc::Sender<DiscordEvent>>,
 }
 
 impl<R, I, Rn, C> Dispatcher<R, I, Rn, C>
@@ -34,7 +40,21 @@ where
 {
     pub fn new(engine: MenuEngine, rpc: R, input: I, render: Rn, config: C) -> Self {
         let last_anchor = engine.anchor();
-        Dispatcher { engine, rpc, input, render, config, nav: None, last_anchor }
+        Dispatcher {
+            engine,
+            rpc,
+            input,
+            render,
+            config,
+            nav: None,
+            last_anchor,
+            voice_sink: None,
+        }
+    }
+
+    /// Route drained voice-subscription events into `sink` (the live run loop).
+    pub fn set_voice_sink(&mut self, sink: mpsc::Sender<DiscordEvent>) {
+        self.voice_sink = Some(sink);
     }
 
     /// Feed a controller intent and fully apply the consequences.
@@ -108,11 +128,33 @@ where
                 let _ = self.rpc.select_voice(None).await;
                 Some(DiscordEvent::LeftVoice)
             }
-            // Subscriptions feed the voice stream that the run-loop selects on;
-            // not part of the request/response drive.
-            DiscordCommand::SubscribeVoice { .. }
-            | DiscordCommand::UnsubscribeVoice { .. }
-            | DiscordCommand::Connect => None,
+            // Subscriptions: drain the per-channel stream into the voice sink
+            // (when wired by the run loop). No immediate follow-up event.
+            DiscordCommand::SubscribeVoice { channel } => {
+                if let Some(sink) = self.voice_sink.clone() {
+                    let stream = self.rpc.subscribe_voice(channel);
+                    tokio::spawn(async move {
+                        use futures_util::StreamExt;
+                        let mut stream = stream;
+                        while let Some(ev) = stream.next().await {
+                            let de = match ev {
+                                VoiceEvent::Members { channel, members } => {
+                                    DiscordEvent::VoiceMembers { channel, members }
+                                }
+                                VoiceEvent::SpeakingChanged { channel, user, speaking } => {
+                                    DiscordEvent::SpeakingChanged { channel, user, speaking }
+                                }
+                                _ => continue,
+                            };
+                            if sink.send(de).await.is_err() {
+                                break;
+                            }
+                        }
+                    });
+                }
+                None
+            }
+            DiscordCommand::UnsubscribeVoice { .. } | DiscordCommand::Connect => None,
             _ => None,
         }
     }

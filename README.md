@@ -14,17 +14,18 @@ focus-stealing window**.
 
 | Phase | What | State |
 |---|---|---|
-| 0 | `couchcordd doctor` de-risk gate | ✅ done — gamescope external-overlay atom **verified** |
-| 1 | Pure core + all crate logic, unit-tested | ✅ done |
-| 2 | `cc-discord` RPC client (async actor) | ✅ code + **mock-socket test**; live auth round-trip pending Discord + app |
-| 5a | Composition reactor (`Dispatcher`) | ✅ code + **mock integration test** (full flow); live wiring pending P3/P4 impls |
-| 3 | Steam-Input keyboard flow mid-game | ⏳ needs controller + game session |
-| 4 | X11 overlay window + CDN image fetch | ⏳ needs the gamescope session |
+| 0 | `couchcordd doctor` de-risk gate | ✅ gamescope external-overlay atom **verified** |
+| 1 | Pure core + all crate logic | ✅ unit-tested |
+| 2 | `cc-discord` RPC client (async actor) | ✅ code + **mock-socket test** |
+| 3 | `cc-input` evdev `InputSource` (grab + read) | ✅ code; live validation pending controller+game |
+| 4 | `cc-render` X11 overlay window + `cc-assets` CDN fetch | ✅ code; live validation pending session |
+| 5 | `couchcordd run` composes everything | ✅ **compiles + wired**; reactor mock-tested |
 
-**51 tests, no hardware required.** The two remaining phases are the genuine
-hardware boundaries the architecture says to design *after* a live spike — they
-need you at the desk with the controller and a game session, and Discord running
-for the auth round-trip.
+**58 tests, whole workspace compiles, `couchcordd run` is fully composed.**
+Everything that is automatable is done. What remains is **live validation** — it
+needs you at the desk: Discord running (Phase 2 auth round-trip), and the
+controller + a game session (Phase 3/4 input + overlay). See
+[`docs/SETUP.md`](docs/SETUP.md).
 
 ## Crates (cargo workspace, compile-isolated)
 

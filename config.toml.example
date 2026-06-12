@@ -1,0 +1,4 @@
+# couchcord config → $XDG_CONFIG_HOME/couchcord/config.toml
+client_id = 1514871580591919246   # your registered Discord application id
+anchor = "TopRight"               # default overlay corner; cycles at runtime
+voice_kinds = ["Guild", "Stage"]  # which channel kinds the browser lists

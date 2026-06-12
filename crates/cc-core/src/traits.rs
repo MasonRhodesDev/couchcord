@@ -101,3 +101,15 @@ pub trait ConfigSource: Send + Sync + 'static {
     /// Persist the 8-position choice.
     fn store_anchor(&self, anchor: Anchor);
 }
+
+/// Lets `Arc<Settings>` and `Arc<dyn ConfigSource>` be used wherever a
+/// `ConfigSource` is needed, so the renderer and the reactor can share one
+/// config handle.
+impl<T: ConfigSource + ?Sized> ConfigSource for Arc<T> {
+    fn current(&self) -> Arc<Config> {
+        (**self).current()
+    }
+    fn store_anchor(&self, anchor: Anchor) {
+        (**self).store_anchor(anchor)
+    }
+}
