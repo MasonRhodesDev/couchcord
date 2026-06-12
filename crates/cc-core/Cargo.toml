@@ -1,0 +1,12 @@
+[package]
+name = "cc-core"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "couchcord shared vocabulary: domain types, message enums, boundary traits. No logic, no IO."
+
+[dependencies]
+async-trait = "0.1"
+futures-core = "0.3"
+serde = { version = "1", features = ["derive"] }

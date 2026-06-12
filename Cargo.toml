@@ -1,6 +1,15 @@
 [workspace]
 resolver = "2"
-members = ["crates/couchcordd"]
+members = [
+    "crates/cc-core",
+    "crates/cc-config",
+    "crates/cc-discord",
+    "crates/cc-assets",
+    "crates/cc-input",
+    "crates/cc-render",
+    "crates/cc-menu",
+    "crates/couchcordd",
+]
 
 [workspace.package]
 edition = "2021"
