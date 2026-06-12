@@ -147,7 +147,13 @@ name = "couchcordd"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "async-trait",
+ "cc-config",
+ "cc-core",
+ "cc-menu",
  "evdev",
+ "futures-util",
+ "tokio",
  "x11rb",
 ]
 

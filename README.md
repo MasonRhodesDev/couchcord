@@ -15,11 +15,16 @@ focus-stealing window**.
 | Phase | What | State |
 |---|---|---|
 | 0 | `couchcordd doctor` de-risk gate | ✅ done — gamescope external-overlay atom **verified** |
-| 1 | Pure core + all crate logic, unit-tested | ✅ done — **48 tests** |
-| 2 | Live `SELECT_VOICE_CHANNEL` over `discord-ipc-0` | ⏳ needs Discord running + registered app |
+| 1 | Pure core + all crate logic, unit-tested | ✅ done |
+| 2 | `cc-discord` RPC client (async actor) | ✅ code + **mock-socket test**; live auth round-trip pending Discord + app |
+| 5a | Composition reactor (`Dispatcher`) | ✅ code + **mock integration test** (full flow); live wiring pending P3/P4 impls |
 | 3 | Steam-Input keyboard flow mid-game | ⏳ needs controller + game session |
-| 4 | X11 overlay window + CDN image fetch | ⏳ |
-| 5 | Compose `couchcordd` + ship | ⏳ |
+| 4 | X11 overlay window + CDN image fetch | ⏳ needs the gamescope session |
+
+**51 tests, no hardware required.** The two remaining phases are the genuine
+hardware boundaries the architecture says to design *after* a live spike — they
+need you at the desk with the controller and a game session, and Discord running
+for the auth round-trip.
 
 ## Crates (cargo workspace, compile-isolated)
 
