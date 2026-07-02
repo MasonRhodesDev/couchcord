@@ -1,15 +1,28 @@
 # Setup (one-time)
 
-## 0. Quick install (Steam Deck / SteamOS / any systemd Linux)
+## 0. Install (packages — no installer scripts)
+couchcord ships as an Arch package installed into the user-level pacman root
+shared with [deck-tenant](https://github.com/MasonRhodesDev/deck-tenant)
+(`~/.local/share/deck-pkgs`; see its README for the one-time packager
+container and environment setup):
+
 ```sh
-git clone https://github.com/MasonRhodesDev/couchcord.git
-couchcord/assets/install.sh
+git clone https://github.com/MasonRhodesDev/couchcord.git && cd couchcord
+distrobox enter builder  -- bash -lc 'cargo build --release'   # rust toolchain container
+distrobox enter packager -- makepkg -fd
+ROOT=~/.local/share/deck-pkgs
+unshare -r pacman --root $ROOT --dbpath $ROOT/var/lib/pacman -U --noconfirm couchcord-*.pkg.tar.zst
+
+# one-time: config, units, Discord registration
+install -Dm644 $ROOT/usr/share/couchcord/config.toml.example ~/.config/couchcord/config.toml
+for u in couchcordd.service couchcord-autostart-guard.path couchcord-autostart-guard.service; do
+    systemctl --user link $ROOT/usr/lib/systemd/user/$u; done
+systemctl --user enable --now couchcordd couchcord-autostart-guard.path
+deck-tenant register --app-id com.discordapp.Discord --name Discord
+deck-tenant-steam-sync        # with Steam closed: per-profile Discord tiles
 ```
-Builds (using distrobox when the host has no compiler — SteamOS ships it),
-installs `couchcordd` + the multi-tenant Discord launcher to `~/.local/bin`,
-default config, and an enabled systemd user unit that starts with every
-graphical session. Idempotent; re-run to upgrade. Steps below are the manual
-equivalent plus the one-time bits no installer can do (Steam Input bindings).
+
+Upgrade = rebuild + same `pacman -U`. Uninstall = `pacman -R couchcord`.
 
 ## 0.1 Multi-tenancy (shared devices)
 All Steam profiles on a Deck run as one Linux user. Two pieces keep tenants
