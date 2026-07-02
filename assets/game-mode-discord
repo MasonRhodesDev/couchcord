@@ -30,6 +30,21 @@ PY
 appdir="$HOME/.var/app/$FLATPAK_ID"
 profiles="$appdir/discord-profiles"
 mkdir -p "$profiles/$uid" "$appdir/config"
+
+# Discord is single-instance: launching while another tenant's instance runs
+# would focus *their* session. Kill it on tenant switch before relinking.
+marker="$profiles/.active-tenant"
+if [ -f "$marker" ] && [ "$(cat "$marker" 2>/dev/null)" != "$uid" ]; then
+    if pgrep -f "app/$FLATPAK_ID" >/dev/null 2>&1; then
+        flatpak kill "$FLATPAK_ID" 2>/dev/null
+        for _ in $(seq 1 20); do
+            pgrep -f "app/$FLATPAK_ID" >/dev/null 2>&1 || break
+            sleep 0.5
+        done
+    fi
+fi
+printf '%s\n' "$uid" > "$marker"
+
 cur="$appdir/config/discord"
 if [ -e "$cur" ] && [ ! -L "$cur" ] && [ ! -e "$profiles/default" ]; then
     mv "$cur" "$profiles/default"   # keep any pre-existing login as the fallback profile
@@ -42,4 +57,5 @@ flags=()
 if [ -f "$HOME/.config/discord-flags.conf" ]; then
     mapfile -t flags < <(grep -v '^\s*#' "$HOME/.config/discord-flags.conf" | grep -v '^\s*$')
 fi
-exec flatpak run "$FLATPAK_ID" "${flags[@]}"
+# "$@" forwards discord:// URIs when we're invoked as the URL-scheme handler.
+exec flatpak run "$FLATPAK_ID" "${flags[@]}" "$@"

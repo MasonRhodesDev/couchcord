@@ -47,6 +47,57 @@ install -Dm755 "$REPO/target/release/couchcordd" "$HOME/.local/bin/couchcordd"
 install -Dm755 "$REPO/assets/game-mode-discord"  "$HOME/.local/bin/game-mode-discord"
 say "installed couchcordd + game-mode-discord to ~/.local/bin"
 
+# --- 2b. Discord itself ----------------------------------------------------------
+# The launcher wraps the flatpak Discord; make sure it exists.
+if command -v flatpak >/dev/null 2>&1; then
+    if ! flatpak info com.discordapp.Discord >/dev/null 2>&1; then
+        say "installing Discord (flatpak)"
+        flatpak install -y --noninteractive flathub com.discordapp.Discord
+    else
+        say "Discord flatpak already installed"
+    fi
+else
+    say "WARNING: flatpak not found — install Discord yourself and adjust the launcher"
+fi
+
+# --- 2c. make every launch path multi-tenant -------------------------------------
+# App menu / desktop: a user-level desktop entry shadows the flatpak-exported
+# one (user dirs precede system dirs in XDG_DATA_DIRS), and flatpak updates
+# never touch ~/.local/share/applications — so this survives both Discord and
+# OS updates.
+install -Dm644 /dev/stdin "$HOME/.local/share/applications/com.discordapp.Discord.desktop" <<EOF
+[Desktop Entry]
+Name=Discord
+Comment=Discord (per-Steam-account profile)
+Exec=$HOME/.local/bin/game-mode-discord %U
+Icon=com.discordapp.Discord
+Type=Application
+Categories=Network;InstantMessaging;
+MimeType=x-scheme-handler/discord;
+StartupWMClass=discord
+EOF
+command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database "$HOME/.local/share/applications" || true
+say "desktop entry (menu + discord:// links) overridden to use the multi-tenant launcher"
+
+# Discord's "open on login" writes an XDG autostart entry that launches the
+# flatpak directly — reroute it if present (re-run install.sh if Discord
+# recreates it after a settings change).
+AUTOSTART="$HOME/.config/autostart/com.discordapp.Discord.desktop"
+if [ -f "$AUTOSTART" ] && ! grep -q game-mode-discord "$AUTOSTART"; then
+    sed -i "s|^Exec=.*|Exec=$HOME/.local/bin/game-mode-discord|" "$AUTOSTART"
+    say "rerouted Discord autostart entry through the launcher"
+fi
+
+# Steam shortcuts: rewrite any entry that launches Discord directly. Needs
+# Steam closed (it rewrites shortcuts.vdf on exit).
+if pgrep -x steam >/dev/null 2>&1; then
+    say "Steam is running — skipped shortcut rewire. Close Steam and run:"
+    say "  $REPO/assets/rewire-steam-shortcuts.py"
+    python3 "$REPO/assets/rewire-steam-shortcuts.py" --dry-run || true
+else
+    python3 "$REPO/assets/rewire-steam-shortcuts.py" || true
+fi
+
 # --- 3. config -----------------------------------------------------------------
 CONF="${XDG_CONFIG_HOME:-$HOME/.config}/couchcord/config.toml"
 if [ ! -f "$CONF" ]; then

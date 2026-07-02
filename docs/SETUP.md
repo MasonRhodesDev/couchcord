@@ -60,8 +60,17 @@ chord (e.g. hold Back/Select + a face button or a rear paddle), emitting these
 one fiddly manual step; a shippable `.vdf` template is a follow-up.
 
 ## 4. Discord client
-Run the native Discord client (background) in the game-mode session for voice —
-the daemon only *controls* it over RPC; it doesn't launch it.
+Run the Discord client (background) in the game-mode session for voice — the
+daemon only *controls* it over RPC; it doesn't launch it.
+
+First login per Steam profile: open the Discord tile (the installer creates one
+per profile), sign in — the QR-code scan with the phone app is fastest on a
+Deck — then approve couchcord's one-time RPC authorization prompt inside
+Discord. Desktop mode is covered too: the app-menu entry, `discord://` links,
+and any autostart entry all route through the multi-tenant launcher, and the
+launcher kills a running instance from another Steam profile before starting
+(Discord is single-instance, so a stale instance would leak the previous
+user's session).
 
 ## 5. Run
 ```sh
