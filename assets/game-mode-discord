@@ -1,17 +1,22 @@
 #!/bin/bash
 # Multi-tenant Discord launcher for shared devices (Steam Deck / HTPC).
 #
-# All Steam profiles on a Deck run as one Linux user, so Discord would share a
-# single login. This wrapper binds Discord's config dir to the *active Steam
-# account* (per-profile logins) before launching, via symlink swap.
-#
-# Flatpak note: profile dirs must live INSIDE ~/.var/app/<id>/ — the sandbox
-# cannot follow a symlink to a path it doesn't mount (Discord hangs on launch).
+# Preferred path: delegate to deck-tenant (per-Steam-account virtual homes,
+# https://github.com/MasonRhodesDev/deck-tenant) when Discord is registered
+# there. Fallback: the original per-app symlink swap, so this launcher keeps
+# working standalone.
 set -u
 
 FLATPAK_ID="com.discordapp.Discord"
 
-# Active Steam account id: the loginusers.vdf block with MostRecent=1.
+# --- preferred: deck-tenant virtual homes ---
+if command -v deck-tenant >/dev/null 2>&1 \
+   && grep -q "^$FLATPAK_ID	" "${XDG_CONFIG_HOME:-$HOME/.config}/deck-tenant/apps.tsv" 2>/dev/null; then
+    wrapper=$(grep "^$FLATPAK_ID	" "${XDG_CONFIG_HOME:-$HOME/.config}/deck-tenant/apps.tsv" | cut -f3)
+    [ -x "$wrapper" ] && exec "$wrapper" "$@"
+fi
+
+# --- fallback: per-app config symlink swap in the real home ---
 uid=$(python3 - <<'PY' 2>/dev/null
 import os, re
 p = os.path.expanduser('~/.steam/steam/config/loginusers.vdf')
@@ -31,8 +36,6 @@ appdir="$HOME/.var/app/$FLATPAK_ID"
 profiles="$appdir/discord-profiles"
 mkdir -p "$profiles/$uid" "$appdir/config"
 
-# Discord is single-instance: launching while another tenant's instance runs
-# would focus *their* session. Kill it on tenant switch before relinking.
 marker="$profiles/.active-tenant"
 if [ -f "$marker" ] && [ "$(cat "$marker" 2>/dev/null)" != "$uid" ]; then
     if pgrep -f "app/$FLATPAK_ID" >/dev/null 2>&1; then
@@ -52,10 +55,8 @@ fi
 [ -e "$cur" ] && [ ! -L "$cur" ] && rm -rf "$cur"
 ln -sfn "$profiles/$uid" "$cur"
 
-# Optional electron flags (one per line), e.g. Wayland/ozone switches.
 flags=()
 if [ -f "$HOME/.config/discord-flags.conf" ]; then
     mapfile -t flags < <(grep -v '^\s*#' "$HOME/.config/discord-flags.conf" | grep -v '^\s*$')
 fi
-# "$@" forwards discord:// URIs when we're invoked as the URL-scheme handler.
 exec flatpak run "$FLATPAK_ID" "${flags[@]}" "$@"
