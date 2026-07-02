@@ -45,7 +45,8 @@ fi
 # --- 2. binaries ---------------------------------------------------------------
 install -Dm755 "$REPO/target/release/couchcordd" "$HOME/.local/bin/couchcordd"
 install -Dm755 "$REPO/assets/game-mode-discord"  "$HOME/.local/bin/game-mode-discord"
-say "installed couchcordd + game-mode-discord to ~/.local/bin"
+install -Dm755 "$REPO/assets/session-guard.sh"   "$HOME/.local/bin/couchcord-session-guard"
+say "installed couchcordd + game-mode-discord + session guard to ~/.local/bin"
 
 # --- 2b. Discord itself ----------------------------------------------------------
 # The launcher wraps the flatpak Discord; make sure it exists.
@@ -91,9 +92,14 @@ install -Dm644 "$REPO/assets/systemd/couchcord-autostart-guard.path" \
     "${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/couchcord-autostart-guard.path"
 install -Dm644 "$REPO/assets/systemd/couchcord-autostart-guard.service" \
     "${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/couchcord-autostart-guard.service"
+install -Dm644 "$REPO/assets/systemd/couchcord-session-guard.service" \
+    "${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/couchcord-session-guard.service"
 systemctl --user daemon-reload
 systemctl --user enable --now couchcord-autostart-guard.path
-say "autostart guard armed (path unit masks Discord's autostart rewrites)"
+systemctl --user enable couchcord-session-guard
+systemctl --user restart couchcord-session-guard
+say "autostart guard armed; session guard running (Discord closes with game-mode"
+say "sessions and restarts on Steam account changes; desktop mode is left alone)"
 
 # Steam shortcuts: rewrite any entry that launches Discord directly. Needs
 # Steam closed (it rewrites shortcuts.vdf on exit).

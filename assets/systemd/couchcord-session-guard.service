@@ -1,0 +1,11 @@
+[Unit]
+Description=Close/reopen Discord on Steam session and account boundaries
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/couchcord-session-guard
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target
