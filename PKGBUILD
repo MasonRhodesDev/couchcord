@@ -5,7 +5,7 @@
 # Install: pacman --root ~/.local/share/deck-pkgs --dbpath ~/.local/share/deck-pkgs/var/lib/pacman -U couchcord-*.pkg.tar.zst
 pkgname=couchcord
 pkgver=0.1.0
-pkgrel=2
+pkgrel=4
 pkgdesc="Controller-driven Discord voice control + activity overlay for Steam game mode"
 arch=(x86_64)
 url="https://github.com/MasonRhodesDev/couchcord"

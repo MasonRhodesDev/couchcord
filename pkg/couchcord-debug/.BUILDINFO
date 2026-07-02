@@ -1,11 +1,11 @@
 format = 2
 pkgname = couchcord-debug
 pkgbase = couchcord
-pkgver = 0.1.0-2
+pkgver = 0.1.0-4
 pkgarch = x86_64
-pkgbuild_sha256sum = 2b807e12ad1e3e8635a2dd8040e291284dfff8197a26ee8ce768e25e20904b0c
+pkgbuild_sha256sum = 759995344c271e1283887716482d85789948e8808a46e04d638373696f4d89cb
 packager = Unknown Packager
-builddate = 1783010885
+builddate = 1783011443
 builddir = /home/deck/Projects/couchcord
 startdir = /home/deck/Projects/couchcord
 buildtool = makepkg

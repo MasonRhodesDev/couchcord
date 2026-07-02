@@ -32,52 +32,27 @@ pub async fn run_live() -> anyhow::Result<()> {
         None => tracing::info!("no Steam login detected — using shared state"),
     }
 
-    // --- discord rpc: connect + authenticate (live) ---
+    // --- discord rpc: connect + authenticate (live, event-driven) ---
     // At session start we come up before Discord does (the unit is bound to
-    // graphical-session.target), so wait for the socket instead of exiting —
-    // exiting turns into a systemd restart-loop that hits the start limit
-    // before Discord ever appears.
-    //
-    // Auth failures with a live socket usually mean Discord is booting or the
-    // current profile simply isn't signed in (multi-tenant device: some
-    // profiles may never use Discord). Retry fast only briefly, then settle
-    // into a slow heartbeat with a single log line — waiting must be near-free
-    // and must not spam the journal forever.
-    let (rpc, user) = {
-        let mut auth_failures: u32 = 0;
-        loop {
-            match DiscordRpc::connect_ipc(cfg.voice_kinds.clone()).await {
-                Ok(rpc) => match rpc.connect(cfg.client_id).await {
+    // graphical-session.target). No polling anywhere in this path:
+    //   socket appearance  -> inotify on the runtime dirs
+    //   sign-in            -> the handshake READY reply, which a signed-out
+    //                         Discord holds until the user signs in
+    //   socket death       -> stream EOF drops the pending reply (error here)
+    let (rpc, user) = loop {
+        wait_for_discord_socket().await;
+        match DiscordRpc::connect_ipc(cfg.voice_kinds.clone()).await {
+            Ok(rpc) => {
+                tracing::info!("discord socket up — awaiting READY (sign-in completes it)");
+                match rpc.connect(cfg.client_id).await {
                     Ok(user) => break (rpc, user),
-                    Err(e) => {
-                        auth_failures += 1;
-                        match auth_failures {
-                            1 => tracing::warn!("discord auth failed: {e}; retrying"),
-                            6 => tracing::info!(
-                                "Discord is running but not authenticating (not signed in?) — \
-                                 backing off to a 2-minute heartbeat"
-                            ),
-                            _ => tracing::debug!("discord auth failed: {e}"),
-                        }
-                    }
-                },
-                Err(e) => {
-                    // socket gone: Discord exited/restarted — a sign-in often
-                    // comes with a fresh launch, so return to fast retries
-                    if auth_failures >= 6 {
-                        tracing::info!("Discord socket gone — resuming fast retries");
-                    }
-                    auth_failures = 0;
-                    tracing::debug!("waiting for Discord: {e}");
+                    Err(e) => tracing::info!("discord connection ended before READY ({e})"),
                 }
             }
-            let delay = match auth_failures {
-                0..=5 => 5,    // booting / just launched
-                6..=9 => 30,   // probably not signed in
-                _ => 120,      // dormant heartbeat
-            };
-            tokio::time::sleep(std::time::Duration::from_secs(delay)).await;
+            Err(e) => tracing::debug!("socket vanished before connect: {e}"),
         }
+        // debounce so a crash-looping Discord can't spin us
+        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
     };
     tracing::info!("connected to Discord as user {user}");
 
@@ -91,13 +66,21 @@ pub async fn run_live() -> anyhow::Result<()> {
     // --- engine + dispatcher ---
     let engine = MenuEngine::new(&cfg);
     let (voice_tx, mut voice_rx) = mpsc::channel(256);
+    let rpc_closed = rpc.closed();
     let mut disp = Dispatcher::new(engine, rpc, input, render, settings.clone());
     disp.set_voice_sink(voice_tx);
 
     tracing::info!("couchcord running — press the chord to open the menu");
     tokio::pin!(intents);
+    tokio::pin!(rpc_closed);
     loop {
         tokio::select! {
+            // Discord went away (quit, crash, or the tenant guard closed it on
+            // a profile switch). Exit; systemd restarts us into a fresh
+            // event-driven connect — waiting on a dead handle helps no one.
+            _ = &mut rpc_closed => {
+                return Err(anyhow::anyhow!("discord connection lost — restarting to reconnect"));
+            }
             maybe = intents.next() => match maybe {
                 Some(intent) => disp.on_input(intent).await,
                 None => break, // input device gone
@@ -106,4 +89,63 @@ pub async fn run_live() -> anyhow::Result<()> {
         }
     }
     Ok(())
+}
+
+/// Block until a `discord-ipc-N` socket exists under `$XDG_RUNTIME_DIR` (native
+/// path or the flatpak/snap export subdirs) — event-driven via inotify rather
+/// than polling. Returns as soon as a socket is present or a creation event
+/// lands in a watched dir; the caller loops, so a spurious wake just re-arms.
+/// A long defensive timeout guards against a missed event (e.g. the flatpak
+/// subdir appearing between our existence check and watch registration).
+async fn wait_for_discord_socket() {
+    use futures_util::StreamExt;
+    use inotify::{Inotify, WatchMask};
+
+    const ROOTS: [&str; 3] = ["", "app/com.discordapp.Discord", "snap.discord"];
+    let runtime =
+        std::env::var("XDG_RUNTIME_DIR").unwrap_or_else(|_| "/run/user/1000".to_string());
+
+    let socket_present = |runtime: &str| {
+        ROOTS.iter().any(|root| {
+            (0..10).any(|n| {
+                std::path::Path::new(runtime)
+                    .join(root)
+                    .join(format!("discord-ipc-{n}"))
+                    .exists()
+            })
+        })
+    };
+
+    loop {
+        if socket_present(&runtime) {
+            return;
+        }
+        let Ok(inotify) = Inotify::init() else {
+            // no inotify: degrade to a slow sleep rather than a tight loop
+            tokio::time::sleep(std::time::Duration::from_secs(30)).await;
+            continue;
+        };
+        for root in ROOTS {
+            let dir = std::path::Path::new(&runtime).join(root);
+            if dir.is_dir() {
+                // CREATE covers the socket itself and new export subdirs
+                let _ = inotify.watches().add(&dir, WatchMask::CREATE);
+            }
+        }
+        // re-check after arming: the socket may have appeared in between
+        if socket_present(&runtime) {
+            return;
+        }
+        let Ok(mut events) = inotify.into_event_stream([0u8; 4096]) else {
+            tokio::time::sleep(std::time::Duration::from_secs(30)).await;
+            continue;
+        };
+        // any creation event (or the defensive timeout) sends us around the
+        // loop to re-check and re-arm — new subdirs get watched on re-entry
+        let _ = tokio::time::timeout(
+            std::time::Duration::from_secs(600),
+            events.next(),
+        )
+        .await;
+    }
 }

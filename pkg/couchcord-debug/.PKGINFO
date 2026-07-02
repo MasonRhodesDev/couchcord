@@ -3,11 +3,11 @@
 pkgname = couchcord-debug
 pkgbase = couchcord
 xdata = pkgtype=debug
-pkgver = 0.1.0-2
+pkgver = 0.1.0-4
 pkgdesc = Detached debugging symbols for couchcord
 url = https://github.com/MasonRhodesDev/couchcord
-builddate = 1783010885
+builddate = 1783011443
 packager = Unknown Packager
-size = 845632
+size = 853592
 arch = x86_64
 license = MIT

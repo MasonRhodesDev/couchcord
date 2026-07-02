@@ -66,12 +66,32 @@ impl DiscordRpc {
         }
     }
 
+    /// Resolves when the IO actor has exited (socket EOF/error) — the
+    /// connection-death event, awaitable alongside other reactor inputs.
+    pub fn closed(&self) -> impl std::future::Future<Output = ()> + Send + 'static {
+        let tx = self.cmd_tx.clone();
+        async move { tx.closed().await }
+    }
+
     fn next_nonce(&self) -> String {
         format!("cc-{}", self.nonce.fetch_add(1, Ordering::Relaxed))
     }
 
     /// Send a framed command and await the matching-nonce reply's `data`.
     async fn request(&self, build: impl FnOnce(&str) -> Vec<u8>) -> Result<Value, RpcError> {
+        self.request_deadline(build, Some(std::time::Duration::from_secs(10))).await
+    }
+
+    /// Like [`request`], but with an optional deadline. `None` awaits
+    /// indefinitely — used for AUTHORIZE, which a signed-out Discord client
+    /// holds unanswered until the user signs in: the reply IS the sign-in
+    /// event, so waiting on it is event-driven rather than polled. Safe
+    /// because the actor drops all pending replies when the socket closes.
+    async fn request_deadline(
+        &self,
+        build: impl FnOnce(&str) -> Vec<u8>,
+        deadline: Option<std::time::Duration>,
+    ) -> Result<Value, RpcError> {
         let nonce = self.next_nonce();
         let bytes = build(&nonce);
         let (tx, rx) = oneshot::channel();
@@ -79,10 +99,13 @@ impl DiscordRpc {
             .send(Request { bytes, nonce, reply: tx })
             .await
             .map_err(|_| RpcError::new("rpc actor gone"))?;
-        let reply = tokio::time::timeout(std::time::Duration::from_secs(10), rx)
-            .await
-            .map_err(|_| RpcError::new("rpc request timed out"))?
-            .map_err(|_| RpcError::new("rpc reply dropped"))?;
+        let reply = match deadline {
+            Some(d) => tokio::time::timeout(d, rx)
+                .await
+                .map_err(|_| RpcError::new("rpc request timed out"))?,
+            None => rx.await,
+        }
+        .map_err(|_| RpcError::new("rpc reply dropped"))?;
         if let Some(err) = reply.get("evt").and_then(Value::as_str) {
             if err == "ERROR" {
                 let msg = reply
@@ -103,8 +126,12 @@ impl RpcClient for DiscordRpc {
         // Handshake is op 0, no nonce — handled specially by the actor at start.
         // Here we (re)assert identity and read READY's user. The actor replies to
         // the synthetic "__handshake__" correlation.
+        //
+        // No deadline: a booting or signed-out Discord holds READY until the
+        // user is signed in, so the reply is the sign-in event itself. If the
+        // socket dies first the actor drops the pending reply and this errors.
         let data = self
-            .request(|_| protocol::handshake(app))
+            .request_deadline(|_| protocol::handshake(app), None)
             .await?;
         let uid = data
             .get("user")
@@ -273,19 +300,32 @@ async fn run_actor(
     });
 
     // Writer loop: take commands, register the nonce, write the frame.
-    while let Some(req) = cmd_rx.recv().await {
-        // op-0 handshake frames carry no nonce; correlate them synthetically.
-        let key = if is_handshake(&req.bytes) {
-            "__handshake__".to_string()
-        } else {
-            req.nonce.clone()
-        };
-        pending.lock().await.insert(key, req.reply);
-        let mut w = wr.lock().await;
-        if w.write_all(&req.bytes).await.is_err() {
-            break;
+    // Also watch the reader: on socket EOF/error every pending reply must be
+    // dropped immediately, or an open-ended request (AUTHORIZE awaiting
+    // sign-in) would hang past the death of the connection.
+    let mut reader = reader;
+    loop {
+        tokio::select! {
+            _ = &mut reader => {
+                pending.lock().await.clear();
+                return Err(RpcError::new("discord rpc socket closed"));
+            }
+            req = cmd_rx.recv() => {
+                let Some(req) = req else { break };
+                // op-0 handshake frames carry no nonce; correlate them synthetically.
+                let key = if is_handshake(&req.bytes) {
+                    "__handshake__".to_string()
+                } else {
+                    req.nonce.clone()
+                };
+                pending.lock().await.insert(key, req.reply);
+                let mut w = wr.lock().await;
+                if w.write_all(&req.bytes).await.is_err() {
+                    break;
+                }
+                let _ = w.flush().await;
+            }
         }
-        let _ = w.flush().await;
     }
     reader.abort();
     Ok(())
