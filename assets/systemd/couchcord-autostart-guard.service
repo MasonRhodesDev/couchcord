@@ -1,0 +1,12 @@
+[Unit]
+Description=Reroute Discord's autostart entry through the multi-tenant launcher
+
+[Service]
+Type=oneshot
+# Discord's background portal rewrites this file whenever "open on login" is
+# toggled, pointing it straight at the flatpak. Reroute; the rewrite retriggers
+# the path unit once, sees the launcher already present, and does nothing.
+ExecStart=/bin/sh -c 'f="$HOME/.config/autostart/com.discordapp.Discord.desktop"; \
+  [ -f "$f" ] || exit 0; \
+  grep -q game-mode-discord "$f" && exit 0; \
+  sed -i "s|^Exec=.*|Exec=$HOME/.local/bin/game-mode-discord|" "$f"'

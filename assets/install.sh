@@ -80,13 +80,20 @@ command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database "$
 say "desktop entry (menu + discord:// links) overridden to use the multi-tenant launcher"
 
 # Discord's "open on login" writes an XDG autostart entry that launches the
-# flatpak directly — reroute it if present (re-run install.sh if Discord
-# recreates it after a settings change).
+# flatpak directly. Reroute it now, and install a path-unit mask that rewrites
+# it automatically whenever Discord regenerates it.
 AUTOSTART="$HOME/.config/autostart/com.discordapp.Discord.desktop"
 if [ -f "$AUTOSTART" ] && ! grep -q game-mode-discord "$AUTOSTART"; then
     sed -i "s|^Exec=.*|Exec=$HOME/.local/bin/game-mode-discord|" "$AUTOSTART"
     say "rerouted Discord autostart entry through the launcher"
 fi
+install -Dm644 "$REPO/assets/systemd/couchcord-autostart-guard.path" \
+    "${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/couchcord-autostart-guard.path"
+install -Dm644 "$REPO/assets/systemd/couchcord-autostart-guard.service" \
+    "${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/couchcord-autostart-guard.service"
+systemctl --user daemon-reload
+systemctl --user enable --now couchcord-autostart-guard.path
+say "autostart guard armed (path unit masks Discord's autostart rewrites)"
 
 # Steam shortcuts: rewrite any entry that launches Discord directly. Needs
 # Steam closed (it rewrites shortcuts.vdf on exit).

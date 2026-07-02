@@ -70,7 +70,10 @@ Discord. Desktop mode is covered too: the app-menu entry, `discord://` links,
 and any autostart entry all route through the multi-tenant launcher, and the
 launcher kills a running instance from another Steam profile before starting
 (Discord is single-instance, so a stale instance would leak the previous
-user's session).
+user's session). A systemd path unit (`couchcord-autostart-guard.path`) masks
+Discord's autostart entry: if Discord regenerates it (toggling "open on
+login"), the guard rewrites it back through the launcher within seconds — no
+re-run of the installer needed.
 
 ## 5. Run
 ```sh
