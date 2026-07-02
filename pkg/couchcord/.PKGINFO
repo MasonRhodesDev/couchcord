@@ -3,12 +3,12 @@
 pkgname = couchcord
 pkgbase = couchcord
 xdata = pkgtype=pkg
-pkgver = 0.1.0-1
+pkgver = 0.1.0-2
 pkgdesc = Controller-driven Discord voice control + activity overlay for Steam game mode
 url = https://github.com/MasonRhodesDev/couchcord
-builddate = 1782979814
+builddate = 1783010885
 packager = Unknown Packager
-size = 2990550
+size = 2994310
 arch = x86_64
 license = MIT
 depend = deck-tenant

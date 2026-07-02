@@ -37,15 +37,47 @@ pub async fn run_live() -> anyhow::Result<()> {
     // graphical-session.target), so wait for the socket instead of exiting —
     // exiting turns into a systemd restart-loop that hits the start limit
     // before Discord ever appears.
-    let (rpc, user) = loop {
-        match DiscordRpc::connect_ipc(cfg.voice_kinds.clone()).await {
-            Ok(rpc) => match rpc.connect(cfg.client_id).await {
-                Ok(user) => break (rpc, user),
-                Err(e) => tracing::warn!("discord auth failed: {e}; retrying in 5s"),
-            },
-            Err(e) => tracing::info!("waiting for Discord: {e}; retrying in 5s"),
+    //
+    // Auth failures with a live socket usually mean Discord is booting or the
+    // current profile simply isn't signed in (multi-tenant device: some
+    // profiles may never use Discord). Retry fast only briefly, then settle
+    // into a slow heartbeat with a single log line — waiting must be near-free
+    // and must not spam the journal forever.
+    let (rpc, user) = {
+        let mut auth_failures: u32 = 0;
+        loop {
+            match DiscordRpc::connect_ipc(cfg.voice_kinds.clone()).await {
+                Ok(rpc) => match rpc.connect(cfg.client_id).await {
+                    Ok(user) => break (rpc, user),
+                    Err(e) => {
+                        auth_failures += 1;
+                        match auth_failures {
+                            1 => tracing::warn!("discord auth failed: {e}; retrying"),
+                            6 => tracing::info!(
+                                "Discord is running but not authenticating (not signed in?) — \
+                                 backing off to a 2-minute heartbeat"
+                            ),
+                            _ => tracing::debug!("discord auth failed: {e}"),
+                        }
+                    }
+                },
+                Err(e) => {
+                    // socket gone: Discord exited/restarted — a sign-in often
+                    // comes with a fresh launch, so return to fast retries
+                    if auth_failures >= 6 {
+                        tracing::info!("Discord socket gone — resuming fast retries");
+                    }
+                    auth_failures = 0;
+                    tracing::debug!("waiting for Discord: {e}");
+                }
+            }
+            let delay = match auth_failures {
+                0..=5 => 5,    // booting / just launched
+                6..=9 => 30,   // probably not signed in
+                _ => 120,      // dormant heartbeat
+            };
+            tokio::time::sleep(std::time::Duration::from_secs(delay)).await;
         }
-        tokio::time::sleep(std::time::Duration::from_secs(5)).await;
     };
     tracing::info!("connected to Discord as user {user}");
 
