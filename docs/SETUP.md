@@ -1,5 +1,28 @@
 # Setup (one-time)
 
+## 0. Quick install (Steam Deck / SteamOS / any systemd Linux)
+```sh
+git clone https://github.com/MasonRhodesDev/couchcord.git
+couchcord/assets/install.sh
+```
+Builds (using distrobox when the host has no compiler — SteamOS ships it),
+installs `couchcordd` + the multi-tenant Discord launcher to `~/.local/bin`,
+default config, and an enabled systemd user unit that starts with every
+graphical session. Idempotent; re-run to upgrade. Steps below are the manual
+equivalent plus the one-time bits no installer can do (Steam Input bindings).
+
+## 0.1 Multi-tenancy (shared devices)
+All Steam profiles on a Deck run as one Linux user. Two pieces keep tenants
+separate:
+- **`assets/game-mode-discord`** — point every profile's Discord shortcut at
+  this launcher; it binds Discord's config dir to the active Steam account
+  (detected via `loginusers.vdf` `MostRecent`), so each profile keeps its own
+  Discord login. Flatpak-aware (profile dirs live inside the app's sandbox dir).
+- **`couchcordd` tenant state** — the daemon detects the active Steam account
+  at startup and namespaces per-user state (future token cache) under
+  `~/.local/state/couchcord/tenants/<account_id>`.
+
+
 ## 1. Discord application
 - Application ID (`client_id`): `1514871580591919246` — public, non-secret.
   Owner = you, so RPC works without separate Discord approval.

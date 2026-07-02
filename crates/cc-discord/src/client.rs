@@ -205,14 +205,23 @@ impl<T> Yielder<T> {
 }
 
 /// Open the first live `discord-ipc-N` socket.
+///
+/// Scans `$XDG_RUNTIME_DIR` directly (native client) and the sandbox-exported
+/// subdirs used by the flatpak (`app/com.discordapp.Discord`) and snap
+/// (`snap.discord`) packages, which expose the socket outside the sandbox.
 async fn open_ipc() -> Result<UnixStream, RpcError> {
     let runtime = std::env::var("XDG_RUNTIME_DIR")
         .map_err(|_| RpcError::new("XDG_RUNTIME_DIR not set"))?;
-    for n in 0..10 {
-        let path = PathBuf::from(&runtime).join(format!("discord-ipc-{n}"));
-        if path.exists() {
-            if let Ok(s) = UnixStream::connect(&path).await {
-                return Ok(s);
+    let roots = ["", "app/com.discordapp.Discord", "snap.discord"];
+    for root in roots {
+        for n in 0..10 {
+            let path = PathBuf::from(&runtime)
+                .join(root)
+                .join(format!("discord-ipc-{n}"));
+            if path.exists() {
+                if let Ok(s) = UnixStream::connect(&path).await {
+                    return Ok(s);
+                }
             }
         }
     }

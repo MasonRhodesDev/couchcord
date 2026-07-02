@@ -69,15 +69,21 @@ pub fn run() -> ExitCode {
 
 fn check_discord_ipc() -> Check {
     let runtime = std::env::var("XDG_RUNTIME_DIR").unwrap_or_else(|_| "/run/user/1000".into());
-    // Discord uses discord-ipc-0 .. discord-ipc-9 (first free slot).
+    // Discord uses discord-ipc-0 .. discord-ipc-9 (first free slot). Native
+    // clients bind under $XDG_RUNTIME_DIR; the flatpak and snap packages export
+    // the socket under a sandbox subdir (roots must match cc-discord::open_ipc).
     let mut found = None;
-    for n in 0..10 {
-        let path = PathBuf::from(&runtime).join(format!("discord-ipc-{n}"));
-        if path.exists() {
-            // Confirm it's a live, connectable socket, not a stale node.
-            let connectable = UnixStream::connect(&path).is_ok();
-            found = Some((path, connectable));
-            break;
+    'roots: for root in ["", "app/com.discordapp.Discord", "snap.discord"] {
+        for n in 0..10 {
+            let path = PathBuf::from(&runtime)
+                .join(root)
+                .join(format!("discord-ipc-{n}"));
+            if path.exists() {
+                // Confirm it's a live, connectable socket, not a stale node.
+                let connectable = UnixStream::connect(&path).is_ok();
+                found = Some((path, connectable));
+                break 'roots;
+            }
         }
     }
     match found {

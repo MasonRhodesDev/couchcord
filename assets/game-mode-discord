@@ -1,0 +1,45 @@
+#!/bin/bash
+# Multi-tenant Discord launcher for shared devices (Steam Deck / HTPC).
+#
+# All Steam profiles on a Deck run as one Linux user, so Discord would share a
+# single login. This wrapper binds Discord's config dir to the *active Steam
+# account* (per-profile logins) before launching, via symlink swap.
+#
+# Flatpak note: profile dirs must live INSIDE ~/.var/app/<id>/ — the sandbox
+# cannot follow a symlink to a path it doesn't mount (Discord hangs on launch).
+set -u
+
+FLATPAK_ID="com.discordapp.Discord"
+
+# Active Steam account id: the loginusers.vdf block with MostRecent=1.
+uid=$(python3 - <<'PY' 2>/dev/null
+import os, re
+p = os.path.expanduser('~/.steam/steam/config/loginusers.vdf')
+try:
+    d = open(p, encoding='utf-8', errors='replace').read()
+except OSError:
+    raise SystemExit
+for m in re.finditer(r'"(\d{17})"\s*\{(.*?)\}', d, re.S):
+    if re.search(r'"MostRecent"\s*"1"', m.group(2)):
+        print(int(m.group(1)) - 76561197960265728)
+        break
+PY
+)
+[ -z "${uid:-}" ] && uid=default
+
+appdir="$HOME/.var/app/$FLATPAK_ID"
+profiles="$appdir/discord-profiles"
+mkdir -p "$profiles/$uid" "$appdir/config"
+cur="$appdir/config/discord"
+if [ -e "$cur" ] && [ ! -L "$cur" ] && [ ! -e "$profiles/default" ]; then
+    mv "$cur" "$profiles/default"   # keep any pre-existing login as the fallback profile
+fi
+[ -e "$cur" ] && [ ! -L "$cur" ] && rm -rf "$cur"
+ln -sfn "$profiles/$uid" "$cur"
+
+# Optional electron flags (one per line), e.g. Wayland/ozone switches.
+flags=()
+if [ -f "$HOME/.config/discord-flags.conf" ]; then
+    mapfile -t flags < <(grep -v '^\s*#' "$HOME/.config/discord-flags.conf" | grep -v '^\s*$')
+fi
+exec flatpak run "$FLATPAK_ID" "${flags[@]}"

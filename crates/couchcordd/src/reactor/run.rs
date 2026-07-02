@@ -23,14 +23,30 @@ pub async fn run_live() -> anyhow::Result<()> {
         .map_err(|e| anyhow::anyhow!("config ({}): {e}", path.display()))?;
     let settings: Arc<dyn ConfigSource> = Arc::new(Settings::new(cfg.clone(), Some(path)));
 
+    // --- tenant: per-Steam-account state namespace (multi-tenant devices) ---
+    match crate::tenant::detect() {
+        Some(t) => {
+            let dir = t.ensure_state_dir();
+            tracing::info!("active Steam account {} — tenant state at {}", t.account_id, dir.display());
+        }
+        None => tracing::info!("no Steam login detected — using shared state"),
+    }
+
     // --- discord rpc: connect + authenticate (live) ---
-    let rpc = DiscordRpc::connect_ipc(cfg.voice_kinds.clone())
-        .await
-        .map_err(|e| anyhow::anyhow!("discord ipc: {e}"))?;
-    let user = rpc
-        .connect(cfg.client_id)
-        .await
-        .map_err(|e| anyhow::anyhow!("discord auth: {e}"))?;
+    // At session start we come up before Discord does (the unit is bound to
+    // graphical-session.target), so wait for the socket instead of exiting —
+    // exiting turns into a systemd restart-loop that hits the start limit
+    // before Discord ever appears.
+    let (rpc, user) = loop {
+        match DiscordRpc::connect_ipc(cfg.voice_kinds.clone()).await {
+            Ok(rpc) => match rpc.connect(cfg.client_id).await {
+                Ok(user) => break (rpc, user),
+                Err(e) => tracing::warn!("discord auth failed: {e}; retrying in 5s"),
+            },
+            Err(e) => tracing::info!("waiting for Discord: {e}; retrying in 5s"),
+        }
+        tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+    };
     tracing::info!("connected to Discord as user {user}");
 
     // --- input: the Steam virtual keyboard (needs a game session) ---

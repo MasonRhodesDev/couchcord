@@ -11,6 +11,7 @@
 
 mod doctor;
 mod reactor; // composition-root reactor (generic + mock-tested; live wiring is Phase 5)
+mod tenant;
 
 use std::process::ExitCode;
 
