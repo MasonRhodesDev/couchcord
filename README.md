@@ -43,9 +43,38 @@ modularity is mechanical, not aspirational.
 | `cc-input` | Steam virtual-kbd → intents | classify + keymap | evdev grab (P3) |
 | `couchcordd` | daemon: `doctor` now, composition root later | doctor | reactor (P5) |
 
-## Build & test
+## Install
+
+> **Caveat:** Discord live-validation is still pending (Phase 2 auth
+> round-trip) and the config schema may still change — treat 0.1.x as a
+> preview package.
+
+**Arch** — from the [mason](https://github.com/MasonRhodesDev/arch-repo)
+pacman repo. Add to `/etc/pacman.conf`:
+
+```ini
+[mason]
+SigLevel = Optional TrustAll
+Server = https://masonrhodesdev.github.io/arch-repo/x86_64
+```
 
 ```sh
-cargo test --workspace      # 48 tests, no hardware needed
+sudo pacman -Syu couchcord
+```
+
+**Fedora** — from COPR:
+
+```sh
+sudo dnf copr enable solaris765/couchcord
+sudo dnf install couchcord
+```
+
+Then follow the one-time steps in [`docs/SETUP.md`](docs/SETUP.md) (`input`
+group, config, Steam Input layer, `systemctl --user enable --now couchcordd`).
+
+## Build & test (development)
+
+```sh
+cargo test --workspace      # 58 tests, no hardware needed
 cargo run -p couchcordd -- doctor   # re-run inside a game-mode session to verify P2/P3 assumptions
 ```

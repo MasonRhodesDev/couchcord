@@ -40,11 +40,20 @@ one fiddly manual step; a shippable `.vdf` template is a follow-up.
 Run the native Discord client (background) in the game-mode session for voice —
 the daemon only *controls* it over RPC; it doesn't launch it.
 
-## 5. Run
+## 5. Install & run
+Install the package (see the README "Install" section — `[mason]` pacman repo
+on Arch, `solaris765/couchcord` COPR on Fedora). It ships
+`/usr/bin/couchcordd`, the user unit in `/usr/lib/systemd/user/`, and
+`config.toml.example` under `/usr/share/doc/couchcord/`.
+
 ```sh
-cargo build --release
-sudo install -m755 target/release/couchcordd /usr/local/bin/couchcordd
-install -m644 assets/systemd/couchcordd.service ~/.config/systemd/user/
 systemctl --user enable --now couchcordd          # or: couchcordd run
 couchcordd doctor                                  # verify the 3 assumptions in-session
+```
+
+For hacking on the tree itself, run straight from cargo — no manual
+`/usr/local/bin` install step:
+
+```sh
+cargo run -p couchcordd -- run       # foreground, current session
 ```
