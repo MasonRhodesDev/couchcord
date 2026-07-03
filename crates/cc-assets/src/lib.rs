@@ -18,12 +18,21 @@ pub fn cdn_url(kind: AssetKind, hash: &AssetHash, size: u32) -> String {
     let size = size.clamp(16, 4096);
     match kind {
         AssetKind::GuildIcon { guild } => {
-            format!("https://cdn.discordapp.com/icons/{guild}/{}.{ext}?size={size}", hash.as_str())
+            format!(
+                "https://cdn.discordapp.com/icons/{guild}/{}.{ext}?size={size}",
+                hash.as_str()
+            )
         }
         AssetKind::UserAvatar { user } => {
-            format!("https://cdn.discordapp.com/avatars/{user}/{}.{ext}?size={size}", hash.as_str())
+            format!(
+                "https://cdn.discordapp.com/avatars/{user}/{}.{ext}?size={size}",
+                hash.as_str()
+            )
         }
-        _ => format!("https://cdn.discordapp.com/{}.{ext}?size={size}", hash.as_str()),
+        _ => format!(
+            "https://cdn.discordapp.com/{}.{ext}?size={size}",
+            hash.as_str()
+        ),
     }
 }
 
@@ -46,7 +55,10 @@ pub struct AssetCache {
 
 impl AssetCache {
     pub fn new(cap: usize) -> Self {
-        AssetCache { map: Mutex::new(HashMap::new()), cap: cap.max(1) }
+        AssetCache {
+            map: Mutex::new(HashMap::new()),
+            cap: cap.max(1),
+        }
     }
 
     pub fn get(&self, url: &str) -> Option<Vec<u8>> {
@@ -79,7 +91,11 @@ pub fn decode_rgba(bytes: &[u8]) -> Option<ImageHandle> {
     let img = image::load_from_memory(bytes).ok()?;
     let rgba = img.to_rgba8();
     let (width, height) = rgba.dimensions();
-    Some(ImageHandle { width, height, rgba: Arc::new(rgba.into_raw()) })
+    Some(ImageHandle {
+        width,
+        height,
+        rgba: Arc::new(rgba.into_raw()),
+    })
 }
 
 /// The live `AssetStore`: fetch a hash from the official Discord CDN over HTTPS,
@@ -97,7 +113,11 @@ impl CdnAssets {
             .user_agent("couchcord/0.1 (+https://github.com/MasonRhodesDev/couchcord)")
             .build()
             .unwrap_or_default();
-        CdnAssets { client, cache: AssetCache::new(256), size: 64 }
+        CdnAssets {
+            client,
+            cache: AssetCache::new(256),
+            size: 64,
+        }
     }
 }
 
@@ -132,7 +152,7 @@ mod tests {
 
     /// A 2×3 RGBA PNG, encoded in-memory, to exercise the decode path offline.
     fn tiny_png() -> Vec<u8> {
-        use image::{ImageEncoder, ColorType};
+        use image::{ColorType, ImageEncoder};
         let pixels: Vec<u8> = vec![255u8; 2 * 3 * 4]; // 2x3, all opaque white
         let mut out = Vec::new();
         image::codecs::png::PngEncoder::new(&mut out)
@@ -156,26 +176,50 @@ mod tests {
     #[test]
     fn guild_icon_url_is_official_cdn() {
         let url = cdn_url(
-            AssetKind::GuildIcon { guild: GuildId(123) },
+            AssetKind::GuildIcon {
+                guild: GuildId(123),
+            },
             &AssetHash("abcdef".into()),
             64,
         );
-        assert_eq!(url, "https://cdn.discordapp.com/icons/123/abcdef.png?size=64");
+        assert_eq!(
+            url,
+            "https://cdn.discordapp.com/icons/123/abcdef.png?size=64"
+        );
     }
 
     #[test]
     fn user_avatar_url_and_animated_extension() {
-        let still = cdn_url(AssetKind::UserAvatar { user: UserId(9) }, &AssetHash("hash".into()), 32);
-        assert_eq!(still, "https://cdn.discordapp.com/avatars/9/hash.png?size=32");
-        let anim = cdn_url(AssetKind::UserAvatar { user: UserId(9) }, &AssetHash("a_hash".into()), 32);
+        let still = cdn_url(
+            AssetKind::UserAvatar { user: UserId(9) },
+            &AssetHash("hash".into()),
+            32,
+        );
+        assert_eq!(
+            still,
+            "https://cdn.discordapp.com/avatars/9/hash.png?size=32"
+        );
+        let anim = cdn_url(
+            AssetKind::UserAvatar { user: UserId(9) },
+            &AssetHash("a_hash".into()),
+            32,
+        );
         assert!(anim.ends_with("a_hash.gif?size=32"), "animated hash → gif");
     }
 
     #[test]
     fn size_is_clamped_to_valid_range() {
-        let url = cdn_url(AssetKind::GuildIcon { guild: GuildId(1) }, &AssetHash("h".into()), 99999);
+        let url = cdn_url(
+            AssetKind::GuildIcon { guild: GuildId(1) },
+            &AssetHash("h".into()),
+            99999,
+        );
         assert!(url.ends_with("size=4096"));
-        let url = cdn_url(AssetKind::GuildIcon { guild: GuildId(1) }, &AssetHash("h".into()), 1);
+        let url = cdn_url(
+            AssetKind::GuildIcon { guild: GuildId(1) },
+            &AssetHash("h".into()),
+            1,
+        );
         assert!(url.ends_with("size=16"));
     }
 

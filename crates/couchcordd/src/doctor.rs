@@ -3,8 +3,8 @@
 //! Each check reports one of three states:
 //!   - `Ok`   — assumption verified here and now.
 //!   - `Warn` — not verifiable in this context (e.g. no game-mode session is
-//!              running); informational, not a failure. Most checks Warn when
-//!              run headless — they're meant to be re-run inside the session.
+//!     running); informational, not a failure. Most checks Warn when run
+//!     headless — they're meant to be re-run inside the session.
 //!   - `Fail` — a concrete, actionable problem (e.g. can't read input devices).
 //!
 //! Exit code = number of `Fail`s, so `0` means nothing is actionably broken.
@@ -46,16 +46,29 @@ impl Check {
 
 pub fn run() -> ExitCode {
     println!("couchcordd doctor — Phase 0 de-risk gate\n");
-    let checks = [check_discord_ipc(), check_steam_virtual_keyboard(), check_gamescope_overlay()];
+    let checks = [
+        check_discord_ipc(),
+        check_steam_virtual_keyboard(),
+        check_gamescope_overlay(),
+    ];
     for c in &checks {
         c.print();
         println!();
     }
-    let fails = checks.iter().filter(|c| matches!(c.status, Status::Fail)).count();
-    let warns = checks.iter().filter(|c| matches!(c.status, Status::Warn)).count();
+    let fails = checks
+        .iter()
+        .filter(|c| matches!(c.status, Status::Fail))
+        .count();
+    let warns = checks
+        .iter()
+        .filter(|c| matches!(c.status, Status::Warn))
+        .count();
     println!(
         "summary: {} ok, {warns} warn, {fails} fail",
-        checks.iter().filter(|c| matches!(c.status, Status::Ok)).count()
+        checks
+            .iter()
+            .filter(|c| matches!(c.status, Status::Ok))
+            .count()
     );
     if warns > 0 && fails == 0 {
         println!("\x1b[2mre-run inside a game-mode session (game using Steam Input) to verify the WARN checks.\x1b[0m");
@@ -90,7 +103,10 @@ fn check_discord_ipc() -> Check {
         Some((path, false)) => Check {
             status: Status::Fail,
             title: "Discord local RPC socket",
-            detail: format!("{} exists but refused a connection (stale?)", path.display()),
+            detail: format!(
+                "{} exists but refused a connection (stale?)",
+                path.display()
+            ),
             hint: Some("restart Discord so it recreates the IPC socket".into()),
         },
         None => Check {
@@ -116,7 +132,11 @@ fn check_steam_virtual_keyboard() -> Check {
         Ok(rd) => rd
             .filter_map(|e| e.ok())
             .map(|e| e.path())
-            .filter(|p| p.file_name().and_then(|n| n.to_str()).is_some_and(|n| n.starts_with("event")))
+            .filter(|p| {
+                p.file_name()
+                    .and_then(|n| n.to_str())
+                    .is_some_and(|n| n.starts_with("event"))
+            })
             .collect(),
         Err(e) => {
             return Check {
@@ -134,9 +154,9 @@ fn check_steam_virtual_keyboard() -> Check {
         match evdev::Device::open(path) {
             Ok(dev) => {
                 let name = dev.name().unwrap_or("<unnamed>").to_string();
-                let is_keyboard = dev
-                    .supported_keys()
-                    .is_some_and(|k| k.contains(evdev::Key::KEY_ENTER) && k.contains(evdev::Key::KEY_A));
+                let is_keyboard = dev.supported_keys().is_some_and(|k| {
+                    k.contains(evdev::Key::KEY_ENTER) && k.contains(evdev::Key::KEY_A)
+                });
                 if is_keyboard {
                     keyboards.push(name.clone());
                     let lname = name.to_lowercase();
@@ -159,19 +179,28 @@ fn check_steam_virtual_keyboard() -> Check {
         };
     }
 
-    let mut detail = format!("{} readable input devices, keyboards: {}", total, keyboards.len());
+    let mut detail = format!(
+        "{} readable input devices, keyboards: {}",
+        total,
+        keyboards.len()
+    );
     if !keyboards.is_empty() {
         detail.push_str(&format!("\n  [{}]", keyboards.join(", ")));
     }
     if denied > 0 {
-        detail.push_str(&format!("\n  ({denied} device(s) not readable — partial input-group access)"));
+        detail.push_str(&format!(
+            "\n  ({denied} device(s) not readable — partial input-group access)"
+        ));
     }
 
     if !virtual_candidates.is_empty() {
         Check {
             status: Status::Ok,
             title: "Steam Input virtual keyboard",
-            detail: format!("{detail}\n  steam/virtual candidate: {}", virtual_candidates.join(", ")),
+            detail: format!(
+                "{detail}\n  steam/virtual candidate: {}",
+                virtual_candidates.join(", ")
+            ),
             hint: None,
         }
     } else {
@@ -196,7 +225,11 @@ fn check_gamescope_overlay() -> Check {
     let mut displays: Vec<u32> = match fs::read_dir("/tmp/.X11-unix") {
         Ok(rd) => rd
             .filter_map(|e| e.ok())
-            .filter_map(|e| e.file_name().to_str().and_then(|s| s.strip_prefix('X').map(str::to_string)))
+            .filter_map(|e| {
+                e.file_name()
+                    .to_str()
+                    .and_then(|s| s.strip_prefix('X').map(str::to_string))
+            })
             .filter_map(|s| s.parse::<u32>().ok())
             .collect(),
         Err(_) => Vec::new(),
@@ -209,7 +242,9 @@ fn check_gamescope_overlay() -> Check {
             status: Status::Warn,
             title: "gamescope external-overlay",
             detail: "no X displays found under /tmp/.X11-unix".into(),
-            hint: Some("the gamescope nested-X server only exists inside a game-mode session".into()),
+            hint: Some(
+                "the gamescope nested-X server only exists inside a game-mode session".into(),
+            ),
         };
     }
 
@@ -244,6 +279,9 @@ fn check_gamescope_overlay() -> Check {
 fn probe_external_overlay(dpy: &str) -> anyhow::Result<bool> {
     use x11rb::protocol::xproto::ConnectionExt;
     let (conn, _screen) = x11rb::connect(Some(dpy))?;
-    let atom = conn.intern_atom(true, b"GAMESCOPE_EXTERNAL_OVERLAY")?.reply()?.atom;
+    let atom = conn
+        .intern_atom(true, b"GAMESCOPE_EXTERNAL_OVERLAY")?
+        .reply()?
+        .atom;
     Ok(atom != 0)
 }

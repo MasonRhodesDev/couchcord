@@ -141,9 +141,15 @@ where
                                 VoiceEvent::Members { channel, members } => {
                                     DiscordEvent::VoiceMembers { channel, members }
                                 }
-                                VoiceEvent::SpeakingChanged { channel, user, speaking } => {
-                                    DiscordEvent::SpeakingChanged { channel, user, speaking }
-                                }
+                                VoiceEvent::SpeakingChanged {
+                                    channel,
+                                    user,
+                                    speaking,
+                                } => DiscordEvent::SpeakingChanged {
+                                    channel,
+                                    user,
+                                    speaking,
+                                },
                                 _ => continue,
                             };
                             if sink.send(de).await.is_err() {
@@ -160,6 +166,7 @@ where
     }
 
     /// Test/inspection: the engine's current anchor.
+    #[cfg(test)]
     pub fn anchor(&self) -> Anchor {
         self.engine.anchor()
     }

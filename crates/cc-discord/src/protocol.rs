@@ -35,8 +35,8 @@ pub fn read_frame(buf: &[u8]) -> Result<Option<(u32, Value, usize)>, RpcError> {
     if buf.len() < 8 + len {
         return Ok(None);
     }
-    let value: Value =
-        serde_json::from_slice(&buf[8..8 + len]).map_err(|e| RpcError::new(format!("json: {e}")))?;
+    let value: Value = serde_json::from_slice(&buf[8..8 + len])
+        .map_err(|e| RpcError::new(format!("json: {e}")))?;
     Ok(Some((op, value, 8 + len)))
 }
 
@@ -44,12 +44,18 @@ pub fn read_frame(buf: &[u8]) -> Result<Option<(u32, Value, usize)>, RpcError> {
 
 /// Opening handshake (op 0). Identifies the registered application.
 pub fn handshake(client_id: ClientId) -> Vec<u8> {
-    frame(OP_HANDSHAKE, &json!({ "v": 1, "client_id": client_id.to_string() }))
+    frame(
+        OP_HANDSHAKE,
+        &json!({ "v": 1, "client_id": client_id.to_string() }),
+    )
 }
 
 /// Build an arbitrary `op-1` command frame `{cmd, args, nonce}`.
 pub fn frame_command(cmd: &str, args: Value, nonce: &str) -> Vec<u8> {
-    frame(OP_FRAME, &json!({ "cmd": cmd, "args": args, "nonce": nonce }))
+    frame(
+        OP_FRAME,
+        &json!({ "cmd": cmd, "args": args, "nonce": nonce }),
+    )
 }
 
 fn command(cmd: &str, args: Value, nonce: &str) -> Vec<u8> {
@@ -61,13 +67,23 @@ pub fn get_guilds(nonce: &str) -> Vec<u8> {
 }
 
 pub fn get_channels(guild: GuildId, nonce: &str) -> Vec<u8> {
-    command("GET_CHANNELS", json!({ "guild_id": guild.to_string() }), nonce)
+    command(
+        "GET_CHANNELS",
+        json!({ "guild_id": guild.to_string() }),
+        nonce,
+    )
 }
 
 /// Join (`Some`) or leave (`None` → `channel_id: null`) a voice channel.
 pub fn select_voice(channel: Option<ChannelId>, nonce: &str) -> Vec<u8> {
-    let id = channel.map(|c| Value::String(c.to_string())).unwrap_or(Value::Null);
-    command("SELECT_VOICE_CHANNEL", json!({ "channel_id": id, "force": true }), nonce)
+    let id = channel
+        .map(|c| Value::String(c.to_string()))
+        .unwrap_or(Value::Null);
+    command(
+        "SELECT_VOICE_CHANNEL",
+        json!({ "channel_id": id, "force": true }),
+        nonce,
+    )
 }
 
 /// Subscribe to one voice event type for a specific channel.
@@ -89,8 +105,15 @@ pub fn parse_guilds(data: &Value) -> Vec<Guild> {
                 .filter_map(|g| {
                     let id = g.get("id")?.as_str()?.parse::<u64>().ok()?;
                     let name = g.get("name")?.as_str()?.to_string();
-                    let icon = g.get("icon").and_then(Value::as_str).map(|s| AssetHash(s.to_string()));
-                    Some(Guild { id: GuildId(id), name, icon })
+                    let icon = g
+                        .get("icon")
+                        .and_then(Value::as_str)
+                        .map(|s| AssetHash(s.to_string()));
+                    Some(Guild {
+                        id: GuildId(id),
+                        name,
+                        icon,
+                    })
                 })
                 .collect()
         })
@@ -113,7 +136,11 @@ pub fn parse_voice_channels(data: &Value, accept: &[VoiceKind]) -> Vec<VoiceChan
                     }
                     let id = c.get("id")?.as_str()?.parse::<u64>().ok()?;
                     let name = c.get("name")?.as_str()?.to_string();
-                    Some(VoiceChannel { id: ChannelId(id), name, kind })
+                    Some(VoiceChannel {
+                        id: ChannelId(id),
+                        name,
+                        kind,
+                    })
                 })
                 .collect()
         })
@@ -149,8 +176,14 @@ mod tests {
     #[test]
     fn read_frame_needs_full_buffer() {
         let bytes = frame(OP_FRAME, &json!({ "x": 1 }));
-        assert!(read_frame(&bytes[..4]).unwrap().is_none(), "header incomplete");
-        assert!(read_frame(&bytes[..bytes.len() - 1]).unwrap().is_none(), "body incomplete");
+        assert!(
+            read_frame(&bytes[..4]).unwrap().is_none(),
+            "header incomplete"
+        );
+        assert!(
+            read_frame(&bytes[..bytes.len() - 1]).unwrap().is_none(),
+            "body incomplete"
+        );
         assert!(read_frame(&bytes).unwrap().is_some(), "complete");
     }
 
@@ -166,7 +199,9 @@ mod tests {
     #[test]
     fn select_voice_join_vs_leave() {
         // join → channel_id is the id string
-        let (_, join, _) = read_frame(&select_voice(Some(ChannelId(42)), "n")).unwrap().unwrap();
+        let (_, join, _) = read_frame(&select_voice(Some(ChannelId(42)), "n"))
+            .unwrap()
+            .unwrap();
         assert_eq!(join["args"]["channel_id"], "42");
         // leave → channel_id is null
         let (_, leave, _) = read_frame(&select_voice(None, "n")).unwrap().unwrap();
@@ -225,8 +260,14 @@ mod tests {
     #[test]
     fn parse_speaking_start_stop() {
         let data = json!({ "channel_id": "10", "user_id": "100" });
-        assert_eq!(parse_speaking("SPEAKING_START", &data), Some((ChannelId(10), UserId(100), true)));
-        assert_eq!(parse_speaking("SPEAKING_STOP", &data), Some((ChannelId(10), UserId(100), false)));
+        assert_eq!(
+            parse_speaking("SPEAKING_START", &data),
+            Some((ChannelId(10), UserId(100), true))
+        );
+        assert_eq!(
+            parse_speaking("SPEAKING_STOP", &data),
+            Some((ChannelId(10), UserId(100), false))
+        );
         assert_eq!(parse_speaking("VOICE_STATE_UPDATE", &data), None);
     }
 }

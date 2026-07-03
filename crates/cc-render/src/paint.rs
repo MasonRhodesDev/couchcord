@@ -1,6 +1,6 @@
-//! Software rasterization of a `Scene` into an ARGB pixel buffer with tiny-skia
-//! + fontdue. Pure (no X), so the layout math is testable; the produced buffer
-//! is handed to the X11 window by `window.rs`.
+//! Software rasterization of a `Scene` into an ARGB pixel buffer with
+//! tiny-skia + fontdue. Pure (no X), so the layout math is testable; the
+//! produced buffer is handed to the X11 window by `window.rs`.
 
 use cc_core::{Config, RowState, Scene};
 use tiny_skia::{Color, Paint, PathBuilder, Pixmap, Rect, Transform};
@@ -44,7 +44,12 @@ fn hex(c: &str) -> Color {
     let s = c.trim_start_matches('#');
     let n = u32::from_str_radix(s, 16).unwrap_or(0);
     if s.len() == 6 {
-        Color::from_rgba8(((n >> 16) & 0xff) as u8, ((n >> 8) & 0xff) as u8, (n & 0xff) as u8, 255)
+        Color::from_rgba8(
+            ((n >> 16) & 0xff) as u8,
+            ((n >> 8) & 0xff) as u8,
+            (n & 0xff) as u8,
+            255,
+        )
     } else {
         Color::from_rgba8(0, 0, 0, 255)
     }
@@ -87,7 +92,14 @@ pub fn render(scene: &Scene, cfg: &Config, font: Option<&fontdue::Font>) -> Opti
         y += TITLE_H;
         for (i, row) in m.rows.iter().enumerate() {
             if i == m.selected {
-                fill_rect(&mut pm, 4.0, y, w as f32 - 8.0, ROW_H - 4.0, with_alpha(accent, 60));
+                fill_rect(
+                    &mut pm,
+                    4.0,
+                    y,
+                    w as f32 - 8.0,
+                    ROW_H - 4.0,
+                    with_alpha(accent, 60),
+                );
                 // accent left bar
                 fill_rect(&mut pm, 4.0, y, 4.0, ROW_H - 4.0, accent);
             }
@@ -111,7 +123,11 @@ pub fn render(scene: &Scene, cfg: &Config, font: Option<&fontdue::Font>) -> Opti
         }
     }
 
-    Some(Frame { width: w, height: h, pixels: pm.data().to_vec() })
+    Some(Frame {
+        width: w,
+        height: h,
+        pixels: pm.data().to_vec(),
+    })
 }
 
 fn with_alpha(c: Color, a: u8) -> Color {
@@ -139,12 +155,26 @@ fn fill_circle(pm: &mut Pixmap, cx: f32, cy: f32, r: f32, color: Color) {
     let mut pb = PathBuilder::new();
     pb.push_circle(cx, cy, r);
     if let Some(path) = pb.finish() {
-        pm.fill_path(&path, &paint, tiny_skia::FillRule::Winding, Transform::identity(), None);
+        pm.fill_path(
+            &path,
+            &paint,
+            tiny_skia::FillRule::Winding,
+            Transform::identity(),
+            None,
+        );
     }
 }
 
 /// Minimal left-to-right text blitter using fontdue coverage bitmaps.
-fn draw_text(pm: &mut Pixmap, font: Option<&fontdue::Font>, text: &str, x: f32, y: f32, px: f32, color: Color) {
+fn draw_text(
+    pm: &mut Pixmap,
+    font: Option<&fontdue::Font>,
+    text: &str,
+    x: f32,
+    y: f32,
+    px: f32,
+    color: Color,
+) {
     let Some(font) = font else { return };
     let mut pen_x = x;
     let baseline = y + px; // crude baseline placement
@@ -157,11 +187,23 @@ fn draw_text(pm: &mut Pixmap, font: Option<&fontdue::Font>, text: &str, x: f32, 
     }
 }
 
-fn blit_coverage(pm: &mut Pixmap, cov: &[u8], cw: usize, ch: usize, ox: i32, oy: i32, color: Color) {
+fn blit_coverage(
+    pm: &mut Pixmap,
+    cov: &[u8],
+    cw: usize,
+    ch: usize,
+    ox: i32,
+    oy: i32,
+    color: Color,
+) {
     let pw = pm.width() as i32;
     let ph = pm.height() as i32;
     let data = pm.data_mut();
-    let (cr, cg, cb) = ((color.red() * 255.0) as u32, (color.green() * 255.0) as u32, (color.blue() * 255.0) as u32);
+    let (cr, cg, cb) = (
+        (color.red() * 255.0) as u32,
+        (color.green() * 255.0) as u32,
+        (color.blue() * 255.0) as u32,
+    );
     for j in 0..ch {
         for i in 0..cw {
             let a = cov[j * cw + i] as u32;
@@ -210,8 +252,16 @@ mod tests {
             menu: Some(MenuView {
                 title: "Servers".into(),
                 rows: vec![
-                    Row { label: "Friends".into(), icon: None, state: RowState::Normal },
-                    Row { label: "Work".into(), icon: None, state: RowState::Normal },
+                    Row {
+                        label: "Friends".into(),
+                        icon: None,
+                        state: RowState::Normal,
+                    },
+                    Row {
+                        label: "Work".into(),
+                        icon: None,
+                        state: RowState::Normal,
+                    },
                 ],
                 selected: 1,
             }),
@@ -229,7 +279,10 @@ mod tests {
             menu: None,
             overlay: Some(Overlay {
                 anchor: Anchor::TopRight,
-                roster: Roster { channel_name: "General".into(), members: vec![] },
+                roster: Roster {
+                    channel_name: "General".into(),
+                    members: vec![],
+                },
             }),
         };
         let f = render(&scene, &cfg(), None).expect("overlay renders");

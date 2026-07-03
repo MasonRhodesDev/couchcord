@@ -16,7 +16,9 @@ pub fn parse(text: &str) -> Result<Config, ConfigError> {
 
 fn validate(cfg: &Config) -> Result<(), ConfigError> {
     if cfg.client_id.0 == 0 {
-        return Err(ConfigError::new("client_id is required (register a Discord app)"));
+        return Err(ConfigError::new(
+            "client_id is required (register a Discord app)",
+        ));
     }
     if cfg.voice_kinds.is_empty() {
         return Err(ConfigError::new("voice_kinds must list at least one kind"));
@@ -26,9 +28,11 @@ fn validate(cfg: &Config) -> Result<(), ConfigError> {
 
 /// Default config file path: `$XDG_CONFIG_HOME/couchcord/config.toml`.
 pub fn default_path() -> PathBuf {
-    let base = std::env::var("XDG_CONFIG_HOME").map(PathBuf::from).unwrap_or_else(|_| {
-        PathBuf::from(std::env::var("HOME").unwrap_or_else(|_| "/root".into())).join(".config")
-    });
+    let base = std::env::var("XDG_CONFIG_HOME")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| {
+            PathBuf::from(std::env::var("HOME").unwrap_or_else(|_| "/root".into())).join(".config")
+        });
     base.join("couchcord").join("config.toml")
 }
 
@@ -48,7 +52,10 @@ pub struct Settings {
 
 impl Settings {
     pub fn new(cfg: Config, path: Option<PathBuf>) -> Self {
-        Settings { current: ArcSwap::from_pointee(cfg), path }
+        Settings {
+            current: ArcSwap::from_pointee(cfg),
+            path,
+        }
     }
 
     /// In-memory only (tests / no persistence).
@@ -120,7 +127,11 @@ mod tests {
         let s = Settings::in_memory(cfg);
         assert_eq!(s.current().anchor, Anchor::TopRight);
         s.store_anchor(Anchor::MidLeft);
-        assert_eq!(s.current().anchor, Anchor::MidLeft, "snapshot reflects the stored anchor");
+        assert_eq!(
+            s.current().anchor,
+            Anchor::MidLeft,
+            "snapshot reflects the stored anchor"
+        );
         assert_eq!(s.current().client_id.0, 7); // preserved across swap
     }
 

@@ -42,7 +42,7 @@ pub struct Theme {
 impl Default for Theme {
     fn default() -> Self {
         Theme {
-            bg: "#171a21".into(),     // Steam dark
+            bg: "#171a21".into(), // Steam dark
             fg: "#c7d5e0".into(),
             accent: "#66c0f4".into(), // Steam blue
             muted: "#8f98a0".into(),

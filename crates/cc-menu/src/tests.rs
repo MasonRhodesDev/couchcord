@@ -15,10 +15,18 @@ fn cfg() -> Config {
 }
 
 fn guild(id: u64, name: &str) -> Guild {
-    Guild { id: GuildId(id), name: name.into(), icon: None }
+    Guild {
+        id: GuildId(id),
+        name: name.into(),
+        icon: None,
+    }
 }
 fn vchan(id: u64, name: &str, kind: VoiceKind) -> VoiceChannel {
-    VoiceChannel { id: ChannelId(id), name: name.into(), kind }
+    VoiceChannel {
+        id: ChannelId(id),
+        name: name.into(),
+        kind,
+    }
 }
 fn member(id: u64, name: &str, speaking: bool) -> VoiceMember {
     VoiceMember {
@@ -35,7 +43,10 @@ fn member(id: u64, name: &str, speaking: bool) -> VoiceMember {
 fn engine_in_channels() -> MenuEngine {
     let mut e = MenuEngine::new(&cfg());
     e.on_input(InputIntent::Chord); // open → loading guilds
-    e.on_discord(DiscordEvent::Guilds(vec![guild(1, "Friends"), guild(2, "Work")]));
+    e.on_discord(DiscordEvent::Guilds(vec![
+        guild(1, "Friends"),
+        guild(2, "Work"),
+    ]));
     e.on_input(InputIntent::Confirm); // select guild 1 → loading channels
     e.on_discord(DiscordEvent::VoiceChannels {
         guild: GuildId(1),
@@ -73,9 +84,15 @@ fn chord_opens_menu_grabs_and_requests_guilds() {
 fn guilds_event_populates_server_list() {
     let mut e = MenuEngine::new(&cfg());
     e.on_input(InputIntent::Chord);
-    let step = e.on_discord(DiscordEvent::Guilds(vec![guild(1, "Friends"), guild(2, "Work")]));
+    let step = e.on_discord(DiscordEvent::Guilds(vec![
+        guild(1, "Friends"),
+        guild(2, "Work"),
+    ]));
     let m = step.scene.menu.unwrap();
-    assert_eq!(m.rows.iter().map(|r| r.label.as_str()).collect::<Vec<_>>(), ["Friends", "Work"]);
+    assert_eq!(
+        m.rows.iter().map(|r| r.label.as_str()).collect::<Vec<_>>(),
+        ["Friends", "Work"]
+    );
     assert_eq!(m.selected, 0);
 }
 
@@ -83,10 +100,23 @@ fn guilds_event_populates_server_list() {
 fn up_down_wraps_the_cursor() {
     let mut e = MenuEngine::new(&cfg());
     e.on_input(InputIntent::Chord);
-    e.on_discord(DiscordEvent::Guilds(vec![guild(1, "A"), guild(2, "B"), guild(3, "C")]));
-    assert_eq!(e.on_input(InputIntent::Down).scene.menu.unwrap().selected, 1);
-    assert_eq!(e.on_input(InputIntent::Down).scene.menu.unwrap().selected, 2);
-    assert_eq!(e.on_input(InputIntent::Down).scene.menu.unwrap().selected, 0); // wrap
+    e.on_discord(DiscordEvent::Guilds(vec![
+        guild(1, "A"),
+        guild(2, "B"),
+        guild(3, "C"),
+    ]));
+    assert_eq!(
+        e.on_input(InputIntent::Down).scene.menu.unwrap().selected,
+        1
+    );
+    assert_eq!(
+        e.on_input(InputIntent::Down).scene.menu.unwrap().selected,
+        2
+    );
+    assert_eq!(
+        e.on_input(InputIntent::Down).scene.menu.unwrap().selected,
+        0
+    ); // wrap
     assert_eq!(e.on_input(InputIntent::Up).scene.menu.unwrap().selected, 2); // wrap back
 }
 
@@ -94,10 +124,16 @@ fn up_down_wraps_the_cursor() {
 fn selecting_a_guild_requests_its_voice_channels() {
     let mut e = MenuEngine::new(&cfg());
     e.on_input(InputIntent::Chord);
-    e.on_discord(DiscordEvent::Guilds(vec![guild(1, "Friends"), guild(2, "Work")]));
+    e.on_discord(DiscordEvent::Guilds(vec![
+        guild(1, "Friends"),
+        guild(2, "Work"),
+    ]));
     e.on_input(InputIntent::Down); // select "Work" (id 2)
     let step = e.on_input(InputIntent::Confirm);
-    assert_eq!(step.cmds, vec![DiscordCommand::ListVoiceChannels { guild: GuildId(2) }]);
+    assert_eq!(
+        step.cmds,
+        vec![DiscordCommand::ListVoiceChannels { guild: GuildId(2) }]
+    );
     assert_eq!(step.scene.menu.unwrap().rows[0].state, RowState::Loading);
 }
 
@@ -117,8 +153,12 @@ fn confirming_a_channel_joins_subscribes_releases_and_closes() {
     assert_eq!(
         step.cmds,
         vec![
-            DiscordCommand::JoinVoice { channel: ChannelId(11) },
-            DiscordCommand::SubscribeVoice { channel: ChannelId(11) },
+            DiscordCommand::JoinVoice {
+                channel: ChannelId(11)
+            },
+            DiscordCommand::SubscribeVoice {
+                channel: ChannelId(11)
+            },
         ]
     );
     assert_eq!(step.controls, vec![InputControl::Release]);
@@ -134,7 +174,9 @@ fn confirming_a_channel_joins_subscribes_releases_and_closes() {
 fn joined_then_members_then_speaking_updates_overlay() {
     let mut e = engine_in_channels();
     e.on_input(InputIntent::Confirm); // join "General" (id 10)
-    e.on_discord(DiscordEvent::JoinedVoice { channel: ChannelId(10) });
+    e.on_discord(DiscordEvent::JoinedVoice {
+        channel: ChannelId(10),
+    });
     e.on_discord(DiscordEvent::VoiceMembers {
         channel: ChannelId(10),
         members: vec![member(100, "mason", false), member(101, "cal", false)],
@@ -155,7 +197,10 @@ fn overlay_persists_with_menu_closed_then_reopened() {
     let mut e = engine_in_channels();
     e.on_input(InputIntent::Confirm); // join → menu closes, overlay live
     assert!(!e.menu_open());
-    assert!(e.scene().overlay.is_some(), "overlay lives while menu closed");
+    assert!(
+        e.scene().overlay.is_some(),
+        "overlay lives while menu closed"
+    );
     // reopen menu: overlay still present alongside the menu (independent layers)
     let step = e.on_input(InputIntent::Chord);
     assert!(step.scene.menu.is_some());
@@ -166,7 +211,9 @@ fn overlay_persists_with_menu_closed_then_reopened() {
 fn leave_via_action_row_emits_leave_and_clears_overlay() {
     let mut e = engine_in_channels();
     e.on_input(InputIntent::Confirm); // join id 10
-    e.on_discord(DiscordEvent::JoinedVoice { channel: ChannelId(10) });
+    e.on_discord(DiscordEvent::JoinedVoice {
+        channel: ChannelId(10),
+    });
     // reopen, go back into the channel list for the guild
     e.on_input(InputIntent::Chord);
     e.on_discord(DiscordEvent::Guilds(vec![guild(1, "Friends")]));
@@ -181,7 +228,12 @@ fn leave_via_action_row_emits_leave_and_clears_overlay() {
     let step = e.on_input(InputIntent::Confirm); // confirm Leave
     assert_eq!(
         step.cmds,
-        vec![DiscordCommand::LeaveVoice, DiscordCommand::UnsubscribeVoice { channel: ChannelId(10) }]
+        vec![
+            DiscordCommand::LeaveVoice,
+            DiscordCommand::UnsubscribeVoice {
+                channel: ChannelId(10)
+            }
+        ]
     );
     e.on_discord(DiscordEvent::LeftVoice);
     assert!(e.scene().overlay.is_none(), "overlay clears after leaving");
@@ -191,7 +243,9 @@ fn leave_via_action_row_emits_leave_and_clears_overlay() {
 fn confirming_the_connected_channel_toggles_leave() {
     let mut e = engine_in_channels();
     e.on_input(InputIntent::Confirm); // join "General" id 10 (cursor 0)
-    e.on_discord(DiscordEvent::JoinedVoice { channel: ChannelId(10) });
+    e.on_discord(DiscordEvent::JoinedVoice {
+        channel: ChannelId(10),
+    });
     e.on_input(InputIntent::Chord); // reopen
     e.on_discord(DiscordEvent::Guilds(vec![guild(1, "Friends")]));
     e.on_input(InputIntent::Confirm);
@@ -254,7 +308,9 @@ fn disconnected_clears_the_overlay() {
     let mut e = engine_in_channels();
     e.on_input(InputIntent::Confirm); // connect
     assert!(e.scene().overlay.is_some());
-    let step = e.on_discord(DiscordEvent::Disconnected { reason: DisconnectReason::ClientNotRunning });
+    let step = e.on_discord(DiscordEvent::Disconnected {
+        reason: DisconnectReason::ClientNotRunning,
+    });
     assert!(step.scene.overlay.is_none(), "lost Discord → overlay gone");
 }
 
@@ -262,7 +318,9 @@ fn disconnected_clears_the_overlay() {
 fn speaking_for_other_channel_is_ignored() {
     let mut e = engine_in_channels();
     e.on_input(InputIntent::Confirm); // join id 10
-    e.on_discord(DiscordEvent::JoinedVoice { channel: ChannelId(10) });
+    e.on_discord(DiscordEvent::JoinedVoice {
+        channel: ChannelId(10),
+    });
     e.on_discord(DiscordEvent::VoiceMembers {
         channel: ChannelId(10),
         members: vec![member(100, "mason", false)],
@@ -279,7 +337,12 @@ fn speaking_for_other_channel_is_ignored() {
 #[test]
 fn input_while_closed_is_inert() {
     let mut e = MenuEngine::new(&cfg());
-    for i in [InputIntent::Up, InputIntent::Down, InputIntent::Confirm, InputIntent::Back] {
+    for i in [
+        InputIntent::Up,
+        InputIntent::Down,
+        InputIntent::Confirm,
+        InputIntent::Back,
+    ] {
         let step = e.on_input(i);
         assert!(step.cmds.is_empty());
         assert!(step.controls.is_empty());

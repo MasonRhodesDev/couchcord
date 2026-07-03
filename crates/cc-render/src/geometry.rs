@@ -65,7 +65,10 @@ mod tests {
     fn all_eight_positions_are_distinct() {
         let mut seen = std::collections::HashSet::new();
         for a in Anchor::ALL {
-            assert!(seen.insert(at(a)), "anchor {a:?} collided with another position");
+            assert!(
+                seen.insert(at(a)),
+                "anchor {a:?} collided with another position"
+            );
         }
         assert_eq!(seen.len(), 8);
     }
@@ -73,7 +76,10 @@ mod tests {
     #[test]
     fn oversized_window_pins_to_origin_not_negative() {
         let (x, y) = anchor_rect(Anchor::BottomRight, (4000, 3000), SCREEN, PAD);
-        assert!(x >= 0 && y >= 0, "never place the window off the top-left edge");
+        assert!(
+            x >= 0 && y >= 0,
+            "never place the window off the top-left edge"
+        );
         assert_eq!((x, y), (0, 0));
     }
 

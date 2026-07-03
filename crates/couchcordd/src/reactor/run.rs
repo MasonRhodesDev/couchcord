@@ -19,8 +19,8 @@ use tokio::sync::mpsc;
 pub async fn run_live() -> anyhow::Result<()> {
     // --- config ---
     let path = cc_config::default_path();
-    let cfg = cc_config::load(&path)
-        .map_err(|e| anyhow::anyhow!("config ({}): {e}", path.display()))?;
+    let cfg =
+        cc_config::load(&path).map_err(|e| anyhow::anyhow!("config ({}): {e}", path.display()))?;
     let settings: Arc<dyn ConfigSource> = Arc::new(Settings::new(cfg.clone(), Some(path)));
 
     // --- discord rpc: connect + authenticate (live) ---
