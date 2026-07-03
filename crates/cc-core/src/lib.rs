@@ -10,12 +10,12 @@
 //! never appears in another domain's compile surface (the upgrade-isolation
 //! property). See `docs/ARCHITECTURE.md` §3.
 
+pub mod config;
+pub mod error;
 pub mod ids;
 pub mod model;
 pub mod msg;
 pub mod scene;
-pub mod config;
-pub mod error;
 pub mod traits;
 
 pub use config::Config;
@@ -23,7 +23,7 @@ pub use error::{ConfigError, InputError, RenderError, RpcError};
 pub use ids::{AssetHash, ChannelId, ClientId, GuildId, UserId};
 pub use model::{Anchor, Guild, VoiceChannel, VoiceKind, VoiceMember};
 pub use msg::{
-    DiscordCommand, DiscordEvent, DisconnectReason, InputControl, InputIntent, VoiceEvent,
+    DisconnectReason, DiscordCommand, DiscordEvent, InputControl, InputIntent, VoiceEvent,
 };
 pub use scene::{MenuView, Overlay, Roster, Row, RowState, Scene};
 pub use traits::{

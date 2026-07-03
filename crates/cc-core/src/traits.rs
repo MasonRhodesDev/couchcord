@@ -45,7 +45,9 @@ pub struct NavGuard {
 
 impl NavGuard {
     pub fn new(on_drop: impl FnOnce() + Send + 'static) -> Self {
-        NavGuard { on_drop: Some(Box::new(on_drop)) }
+        NavGuard {
+            on_drop: Some(Box::new(on_drop)),
+        }
     }
     /// A guard that does nothing on drop (for tests / no-op input sources).
     pub fn noop() -> Self {

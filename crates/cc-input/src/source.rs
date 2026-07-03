@@ -51,17 +51,18 @@ impl EvdevInput {
             .name("cc-input-read".into())
             .spawn(move || read_loop(device, tx, path))
             .map_err(|e| InputError::new(format!("spawn read thread: {e}")))?;
-        Ok(EvdevInput { rx: Some(rx), grab_fd })
+        Ok(EvdevInput {
+            rx: Some(rx),
+            grab_fd,
+        })
     }
 }
 
 impl InputSource for EvdevInput {
     fn intents(&mut self) -> BoxStream<'static, InputIntent> {
         let rx = self.rx.take().expect("intents() called more than once");
-        futures_util::stream::unfold(rx, |mut rx| async move {
-            rx.recv().await.map(|i| (i, rx))
-        })
-        .boxed()
+        futures_util::stream::unfold(rx, |mut rx| async move { rx.recv().await.map(|i| (i, rx)) })
+            .boxed()
     }
 
     fn grab(&mut self) -> Result<NavGuard, InputError> {
@@ -107,7 +108,9 @@ fn find_virtual_keyboard() -> Option<(String, evdev::Device)> {
         .filter_map(|e| e.ok())
         .map(|e| e.path())
         .filter(|p| {
-            p.file_name().and_then(|n| n.to_str()).is_some_and(|n| n.starts_with("event"))
+            p.file_name()
+                .and_then(|n| n.to_str())
+                .is_some_and(|n| n.starts_with("event"))
         })
         .collect();
     entries.sort();

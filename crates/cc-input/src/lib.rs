@@ -29,7 +29,12 @@ pub fn is_steam_virtual_keyboard(name: &str, has_keyboard_keys: bool) -> bool {
 /// Is this device usable as *some* keyboard at all (for the doctor's listing).
 /// A real keyboard has letter + Enter; many mice expose a stray macro key, so
 /// we require a broader signature than a single key.
-pub fn looks_like_keyboard(has_a: bool, has_enter: bool, has_space: bool, has_leftshift: bool) -> bool {
+pub fn looks_like_keyboard(
+    has_a: bool,
+    has_enter: bool,
+    has_space: bool,
+    has_leftshift: bool,
+) -> bool {
     has_a && has_enter && has_space && has_leftshift
 }
 
@@ -98,7 +103,10 @@ mod tests {
         // name matches but no keyboard caps → not it
         assert!(!is_steam_virtual_keyboard("Steam Controller", false));
         // real hardware keyboard → not the virtual one
-        assert!(!is_steam_virtual_keyboard("ZSA Technology Labs Voyager Keyboard", true));
+        assert!(!is_steam_virtual_keyboard(
+            "ZSA Technology Labs Voyager Keyboard",
+            true
+        ));
         // a Razer mouse exposing macro keys → name excludes it
         assert!(!is_steam_virtual_keyboard("Razer Basilisk V3 Pro", true));
     }
@@ -114,11 +122,24 @@ mod tests {
     #[test]
     fn every_layer_key_maps_to_an_intent() {
         use KeyName::*;
-        let all = [SignalChord, Up, Down, Left, Right, Enter, Escape, Backspace, Tab];
+        let all = [
+            SignalChord,
+            Up,
+            Down,
+            Left,
+            Right,
+            Enter,
+            Escape,
+            Backspace,
+            Tab,
+        ];
         for k in all {
             assert!(intent_for_key(k).is_some(), "{k:?} must map to an intent");
         }
-        assert_eq!(intent_for_key(KeyName::SignalChord), Some(InputIntent::Chord));
+        assert_eq!(
+            intent_for_key(KeyName::SignalChord),
+            Some(InputIntent::Chord)
+        );
         assert_eq!(intent_for_key(KeyName::Enter), Some(InputIntent::Confirm));
         assert_eq!(intent_for_key(KeyName::Tab), Some(InputIntent::AnchorCycle));
     }

@@ -37,28 +37,52 @@ pub enum InputControl {
 pub enum DiscordCommand {
     Connect,
     ListGuilds,
-    ListVoiceChannels { guild: GuildId },
-    JoinVoice { channel: ChannelId },
+    ListVoiceChannels {
+        guild: GuildId,
+    },
+    JoinVoice {
+        channel: ChannelId,
+    },
     /// → `SELECT_VOICE_CHANNEL { channel_id: null }`.
     LeaveVoice,
     /// Per-CHANNEL subscription to voice-state + speaking events.
-    SubscribeVoice { channel: ChannelId },
-    UnsubscribeVoice { channel: ChannelId },
+    SubscribeVoice {
+        channel: ChannelId,
+    },
+    UnsubscribeVoice {
+        channel: ChannelId,
+    },
 }
 
 /// DISCORD event: `cc-discord` → `cc-menu`. Already-filtered, already-domain.
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum DiscordEvent {
-    Connected { user: UserId },
-    Disconnected { reason: DisconnectReason },
+    Connected {
+        user: UserId,
+    },
+    Disconnected {
+        reason: DisconnectReason,
+    },
     Guilds(Vec<Guild>),
     /// Channels here are already filtered to voice kinds by `cc-discord`.
-    VoiceChannels { guild: GuildId, channels: Vec<VoiceChannel> },
-    JoinedVoice { channel: ChannelId },
+    VoiceChannels {
+        guild: GuildId,
+        channels: Vec<VoiceChannel>,
+    },
+    JoinedVoice {
+        channel: ChannelId,
+    },
     LeftVoice,
-    VoiceMembers { channel: ChannelId, members: Vec<VoiceMember> },
-    SpeakingChanged { channel: ChannelId, user: UserId, speaking: bool },
+    VoiceMembers {
+        channel: ChannelId,
+        members: Vec<VoiceMember>,
+    },
+    SpeakingChanged {
+        channel: ChannelId,
+        user: UserId,
+        speaking: bool,
+    },
 }
 
 /// Why the Discord connection went away — drives the recovery UX (showing
@@ -79,6 +103,13 @@ pub enum DisconnectReason {
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum VoiceEvent {
-    Members { channel: ChannelId, members: Vec<VoiceMember> },
-    SpeakingChanged { channel: ChannelId, user: UserId, speaking: bool },
+    Members {
+        channel: ChannelId,
+        members: Vec<VoiceMember>,
+    },
+    SpeakingChanged {
+        channel: ChannelId,
+        user: UserId,
+        speaking: bool,
+    },
 }

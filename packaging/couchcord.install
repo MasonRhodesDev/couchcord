@@ -1,0 +1,14 @@
+# couchcordd reads the Steam-Input virtual keyboard via evdev, which requires
+# membership in the `input` group. The unit is a user service bound to
+# graphical-session.target; Arch does not auto-enable units, so both steps are
+# left to the user and printed here.
+
+post_install() {
+    cat <<'EOF'
+couchcord: two manual steps remain —
+  1. evdev access:   sudo usermod -aG input $USER   (then log out / back in)
+  2. enable service: systemctl --user enable --now couchcordd
+Config: copy /usr/share/doc/couchcord/config.toml.example to
+~/.config/couchcord/config.toml. See /usr/share/doc/couchcord/SETUP.md.
+EOF
+}

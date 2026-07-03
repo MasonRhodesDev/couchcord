@@ -23,7 +23,16 @@ macro_rules! simple_error {
     };
 }
 
-simple_error!(RpcError, "An error from the Discord RPC boundary (`cc-discord`).");
+simple_error!(
+    RpcError,
+    "An error from the Discord RPC boundary (`cc-discord`)."
+);
 simple_error!(InputError, "An error from the input boundary (`cc-input`).");
-simple_error!(RenderError, "An error from the render boundary (`cc-render`).");
-simple_error!(ConfigError, "An error loading/validating config (`cc-config`).");
+simple_error!(
+    RenderError,
+    "An error from the render boundary (`cc-render`)."
+);
+simple_error!(
+    ConfigError,
+    "An error loading/validating config (`cc-config`)."
+);

@@ -43,7 +43,12 @@ struct XState {
 impl X11Overlay {
     pub fn new(config: Arc<dyn ConfigSource>) -> Self {
         let anchor = config.current().anchor;
-        X11Overlay { config, font: paint::load_font(), anchor, state: None }
+        X11Overlay {
+            config,
+            font: paint::load_font(),
+            anchor,
+            state: None,
+        }
     }
 }
 
@@ -55,17 +60,19 @@ impl OverlayRenderer for X11Overlay {
         }
         let dpy = discover_gamescope_display()
             .ok_or_else(|| RenderError::new("no gamescope external-overlay display found"))?;
-        let (conn, screen_num) =
-            x11rb::connect(Some(&dpy)).map_err(|e| RenderError::new(format!("connect {dpy}: {e}")))?;
+        let (conn, screen_num) = x11rb::connect(Some(&dpy))
+            .map_err(|e| RenderError::new(format!("connect {dpy}: {e}")))?;
         let setup = conn.setup();
         let screen = &setup.roots[screen_num];
         let screen_size = (screen.width_in_pixels, screen.height_in_pixels);
 
         // A 32-bit TrueColor visual for ARGB; fall back to root depth (no alpha).
-        let (depth, visual) = find_argb_visual(screen).unwrap_or((screen.root_depth, screen.root_visual));
+        let (depth, visual) =
+            find_argb_visual(screen).unwrap_or((screen.root_depth, screen.root_visual));
 
         let colormap = conn.generate_id().map_err(rerr)?;
-        conn.create_colormap(ColormapAlloc::NONE, colormap, screen.root, visual).map_err(rerr)?;
+        conn.create_colormap(ColormapAlloc::NONE, colormap, screen.root, visual)
+            .map_err(rerr)?;
 
         let win = conn.generate_id().map_err(rerr)?;
         let aux = CreateWindowAux::new()
@@ -74,8 +81,20 @@ impl OverlayRenderer for X11Overlay {
             .border_pixel(0)
             .colormap(colormap)
             .event_mask(EventMask::NO_EVENT);
-        conn.create_window(depth, win, screen.root, 0, 0, 1, 1, 0, WindowClass::INPUT_OUTPUT, visual, &aux)
-            .map_err(rerr)?;
+        conn.create_window(
+            depth,
+            win,
+            screen.root,
+            0,
+            0,
+            1,
+            1,
+            0,
+            WindowClass::INPUT_OUTPUT,
+            visual,
+            &aux,
+        )
+        .map_err(rerr)?;
 
         // Flag as a gamescope external overlay.
         let atom = conn
@@ -84,8 +103,14 @@ impl OverlayRenderer for X11Overlay {
             .reply()
             .map_err(rerr)?
             .atom;
-        let cardinal = conn.intern_atom(false, b"CARDINAL").map_err(rerr)?.reply().map_err(rerr)?.atom;
-        conn.change_property32(PropMode::REPLACE, win, atom, cardinal, &[1]).map_err(rerr)?;
+        let cardinal = conn
+            .intern_atom(false, b"CARDINAL")
+            .map_err(rerr)?
+            .reply()
+            .map_err(rerr)?
+            .atom;
+        conn.change_property32(PropMode::REPLACE, win, atom, cardinal, &[1])
+            .map_err(rerr)?;
 
         let gc = conn.generate_id().map_err(rerr)?;
         conn.create_gc(gc, win, &Default::default()).map_err(rerr)?;
@@ -110,7 +135,10 @@ impl OverlayRenderer for X11Overlay {
         let cfg = self.config.current();
         let frame = paint::render(scene, &cfg, self.font.as_ref());
         let anchor = self.anchor;
-        let st = self.state.as_mut().ok_or_else(|| RenderError::new("not realized"))?;
+        let st = self
+            .state
+            .as_mut()
+            .ok_or_else(|| RenderError::new("not realized"))?;
 
         let Some(frame) = frame else {
             // blank → hide
@@ -123,10 +151,19 @@ impl OverlayRenderer for X11Overlay {
         };
 
         let (w, h) = (frame.width as u16, frame.height as u16);
-        let (x, y) = anchor_rect(anchor, (frame.width, frame.height), (st.screen.0 as u32, st.screen.1 as u32), PAD);
+        let (x, y) = anchor_rect(
+            anchor,
+            (frame.width, frame.height),
+            (st.screen.0 as u32, st.screen.1 as u32),
+            PAD,
+        );
 
         use x11rb::protocol::xproto::ConfigureWindowAux;
-        let cfgwin = ConfigureWindowAux::new().x(x).y(y).width(w as u32).height(h as u32);
+        let cfgwin = ConfigureWindowAux::new()
+            .x(x)
+            .y(y)
+            .width(w as u32)
+            .height(h as u32);
         st.conn.configure_window(st.win, &cfgwin).map_err(rerr)?;
         st.size = (w, h);
 
@@ -216,7 +253,11 @@ fn discover_gamescope_display() -> Option<String> {
     let mut nums: Vec<u32> = std::fs::read_dir("/tmp/.X11-unix")
         .ok()?
         .filter_map(|e| e.ok())
-        .filter_map(|e| e.file_name().to_str().and_then(|s| s.strip_prefix('X').map(str::to_string)))
+        .filter_map(|e| {
+            e.file_name()
+                .to_str()
+                .and_then(|s| s.strip_prefix('X').map(str::to_string))
+        })
         .filter_map(|s| s.parse().ok())
         .collect();
     nums.sort_unstable();

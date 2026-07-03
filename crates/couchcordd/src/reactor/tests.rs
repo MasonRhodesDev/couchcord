@@ -5,11 +5,11 @@
 
 use super::*;
 use async_trait::async_trait;
+use cc_config::Settings;
 use cc_core::{
     AssetHash, ChannelId, ClientId, Config, Guild, GuildId, ImageHandle, RpcError, Scene, UserId,
     VoiceChannel, VoiceEvent, VoiceKind, VoiceMember,
 };
-use cc_config::Settings;
 use futures_util::stream::{self, BoxStream, StreamExt};
 use std::sync::{Arc, Mutex};
 
@@ -96,10 +96,18 @@ fn cfg() -> Config {
 }
 
 fn guild(id: u64, name: &str) -> Guild {
-    Guild { id: GuildId(id), name: name.into(), icon: None }
+    Guild {
+        id: GuildId(id),
+        name: name.into(),
+        icon: None,
+    }
 }
 fn vchan(id: u64, name: &str) -> VoiceChannel {
-    VoiceChannel { id: ChannelId(id), name: name.into(), kind: VoiceKind::Guild }
+    VoiceChannel {
+        id: ChannelId(id),
+        name: name.into(),
+        kind: VoiceKind::Guild,
+    }
 }
 
 fn dispatcher(
@@ -144,7 +152,11 @@ async fn full_flow_chord_browse_join_anchor() {
     assert_eq!(*grabs.lock().unwrap(), 1, "menu open grabbed input once");
     let (title, rows) = last_titles(&render_probe);
     assert_eq!(title.as_deref(), Some("Servers"));
-    assert_eq!(rows, vec!["Friends", "Work"], "server list populated via rpc.guilds()");
+    assert_eq!(
+        rows,
+        vec!["Friends", "Work"],
+        "server list populated via rpc.guilds()"
+    );
 
     // 2. Confirm the first server → fetch + show its voice channels.
     d.on_input(InputIntent::Confirm).await;
@@ -185,7 +197,10 @@ async fn full_flow_chord_browse_join_anchor() {
     })
     .await;
     let s = render_probe.last.lock().unwrap().clone().unwrap();
-    assert!(s.overlay.unwrap().roster.members[0].speaking, "speaking flag rendered");
+    assert!(
+        s.overlay.unwrap().roster.members[0].speaking,
+        "speaking flag rendered"
+    );
 
     // 5. AnchorCycle persists the new anchor through ConfigSource.
     let before = d.anchor();
@@ -233,5 +248,5 @@ async fn rpc_failure_surfaces_as_disconnect_not_a_hang() {
     // Chord → ListGuilds fails → Disconnected → engine clears; should not hang.
     d.on_input(InputIntent::Chord).await;
     // A frame was still drawn (the loading menu), proving the loop completed.
-    assert!(probe.draws.lock().unwrap().clone() >= 1);
+    assert!(*probe.draws.lock().unwrap() >= 1);
 }

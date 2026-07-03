@@ -76,7 +76,11 @@ impl DiscordRpc {
         let bytes = build(&nonce);
         let (tx, rx) = oneshot::channel();
         self.cmd_tx
-            .send(Request { bytes, nonce, reply: tx })
+            .send(Request {
+                bytes,
+                nonce,
+                reply: tx,
+            })
             .await
             .map_err(|_| RpcError::new("rpc actor gone"))?;
         let reply = tokio::time::timeout(std::time::Duration::from_secs(10), rx)
@@ -103,9 +107,7 @@ impl RpcClient for DiscordRpc {
         // Handshake is op 0, no nonce — handled specially by the actor at start.
         // Here we (re)assert identity and read READY's user. The actor replies to
         // the synthetic "__handshake__" correlation.
-        let data = self
-            .request(|_| protocol::handshake(app))
-            .await?;
+        let data = self.request(|_| protocol::handshake(app)).await?;
         let uid = data
             .get("user")
             .and_then(|u| u.get("id"))
@@ -132,7 +134,9 @@ impl RpcClient for DiscordRpc {
 
     async fn selected_voice(&self) -> Result<Option<ChannelId>, RpcError> {
         let data = self
-            .request(|n| protocol::frame_command("GET_SELECTED_VOICE_CHANNEL", serde_json::json!({}), n))
+            .request(|n| {
+                protocol::frame_command("GET_SELECTED_VOICE_CHANNEL", serde_json::json!({}), n)
+            })
             .await?;
         Ok(data
             .get("id")
@@ -147,11 +151,23 @@ impl RpcClient for DiscordRpc {
         let cmd_tx = self.cmd_tx.clone();
         let nonce = Arc::clone(&self.nonce);
         tokio::spawn(async move {
-            for evt in ["VOICE_STATE_CREATE", "VOICE_STATE_UPDATE", "VOICE_STATE_DELETE", "SPEAKING_START", "SPEAKING_STOP"] {
+            for evt in [
+                "VOICE_STATE_CREATE",
+                "VOICE_STATE_UPDATE",
+                "VOICE_STATE_DELETE",
+                "SPEAKING_START",
+                "SPEAKING_STOP",
+            ] {
                 let n = format!("sub-{}", nonce.fetch_add(1, Ordering::Relaxed));
                 let bytes = protocol::subscribe_voice_events(channel, evt, &n);
                 let (tx, _rx) = oneshot::channel();
-                let _ = cmd_tx.send(Request { bytes, nonce: n, reply: tx }).await;
+                let _ = cmd_tx
+                    .send(Request {
+                        bytes,
+                        nonce: n,
+                        reply: tx,
+                    })
+                    .await;
             }
         });
         let rx = self.events.subscribe();
@@ -206,8 +222,8 @@ impl<T> Yielder<T> {
 
 /// Open the first live `discord-ipc-N` socket.
 async fn open_ipc() -> Result<UnixStream, RpcError> {
-    let runtime = std::env::var("XDG_RUNTIME_DIR")
-        .map_err(|_| RpcError::new("XDG_RUNTIME_DIR not set"))?;
+    let runtime =
+        std::env::var("XDG_RUNTIME_DIR").map_err(|_| RpcError::new("XDG_RUNTIME_DIR not set"))?;
     for n in 0..10 {
         let path = PathBuf::from(&runtime).join(format!("discord-ipc-{n}"));
         if path.exists() {
@@ -216,7 +232,9 @@ async fn open_ipc() -> Result<UnixStream, RpcError> {
             }
         }
     }
-    Err(RpcError::new("no connectable discord-ipc-N socket (is Discord running?)"))
+    Err(RpcError::new(
+        "no connectable discord-ipc-N socket (is Discord running?)",
+    ))
 }
 
 /// The IO actor: owns the stream, writes commands, reads frames, correlates by
@@ -323,11 +341,18 @@ async fn route_frame(
 /// Map a dispatch event + data into a `VoiceEvent`, or `None` if unrelated.
 fn parse_voice_event(evt: &str, data: &Value) -> Option<VoiceEvent> {
     if let Some((channel, user, speaking)) = protocol::parse_speaking(evt, data) {
-        return Some(VoiceEvent::SpeakingChanged { channel, user, speaking });
+        return Some(VoiceEvent::SpeakingChanged {
+            channel,
+            user,
+            speaking,
+        });
     }
     // VOICE_STATE_* carry a single member; surface as a one-member roster delta.
     if evt.starts_with("VOICE_STATE_") {
-        let channel = data.get("channel_id").and_then(Value::as_str).and_then(|s| s.parse().ok());
+        let channel = data
+            .get("channel_id")
+            .and_then(Value::as_str)
+            .and_then(|s| s.parse().ok());
         let user = data
             .get("user")
             .and_then(|u| u.get("id"))
@@ -337,7 +362,11 @@ fn parse_voice_event(evt: &str, data: &Value) -> Option<VoiceEvent> {
             let name = data
                 .get("nick")
                 .and_then(Value::as_str)
-                .or_else(|| data.get("user").and_then(|u| u.get("username")).and_then(Value::as_str))
+                .or_else(|| {
+                    data.get("user")
+                        .and_then(|u| u.get("username"))
+                        .and_then(Value::as_str)
+                })
                 .unwrap_or("")
                 .to_string();
             let member = VoiceMember {
@@ -345,10 +374,21 @@ fn parse_voice_event(evt: &str, data: &Value) -> Option<VoiceEvent> {
                 name,
                 avatar: None,
                 speaking: false,
-                muted: data.get("voice_state").and_then(|v| v.get("mute")).and_then(Value::as_bool).unwrap_or(false),
-                deafened: data.get("voice_state").and_then(|v| v.get("deaf")).and_then(Value::as_bool).unwrap_or(false),
+                muted: data
+                    .get("voice_state")
+                    .and_then(|v| v.get("mute"))
+                    .and_then(Value::as_bool)
+                    .unwrap_or(false),
+                deafened: data
+                    .get("voice_state")
+                    .and_then(|v| v.get("deaf"))
+                    .and_then(Value::as_bool)
+                    .unwrap_or(false),
             };
-            return Some(VoiceEvent::Members { channel: ChannelId(channel), members: vec![member] });
+            return Some(VoiceEvent::Members {
+                channel: ChannelId(channel),
+                members: vec![member],
+            });
         }
     }
     None
@@ -391,20 +431,39 @@ mod tests {
                 let _ = s.write_all(&reply(OP_FRAME, ready)).await;
                 continue;
             }
-            let nonce = v.get("nonce").and_then(Value::as_str).unwrap_or("").to_string();
+            let nonce = v
+                .get("nonce")
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .to_string();
             match v.get("cmd").and_then(Value::as_str) {
                 Some("GET_GUILDS") => {
                     let data = json!({"guilds":[{"id":"1","name":"Friends"}]});
-                    let _ = s.write_all(&reply(OP_FRAME, json!({"cmd":"GET_GUILDS","data":data,"nonce":nonce}))).await;
+                    let _ = s
+                        .write_all(&reply(
+                            OP_FRAME,
+                            json!({"cmd":"GET_GUILDS","data":data,"nonce":nonce}),
+                        ))
+                        .await;
                 }
                 Some("SELECT_VOICE_CHANNEL") => {
-                    let _ = s.write_all(&reply(OP_FRAME, json!({"cmd":"SELECT_VOICE_CHANNEL","data":json!({}),"nonce":nonce}))).await;
+                    let _ = s
+                        .write_all(&reply(
+                            OP_FRAME,
+                            json!({"cmd":"SELECT_VOICE_CHANNEL","data":json!({}),"nonce":nonce}),
+                        ))
+                        .await;
                     // then emit a speaking event (no nonce) for channel 99
                     let sp = json!({"cmd":"DISPATCH","evt":"SPEAKING_START","data":{"channel_id":"99","user_id":"7"}});
                     let _ = s.write_all(&reply(OP_FRAME, sp)).await;
                 }
                 Some("SUBSCRIBE") => {
-                    let _ = s.write_all(&reply(OP_FRAME, json!({"cmd":"SUBSCRIBE","data":json!({}),"nonce":nonce}))).await;
+                    let _ = s
+                        .write_all(&reply(
+                            OP_FRAME,
+                            json!({"cmd":"SUBSCRIBE","data":json!({}),"nonce":nonce}),
+                        ))
+                        .await;
                 }
                 _ => {}
             }
@@ -436,7 +495,11 @@ mod tests {
             .expect("stream not closed");
         assert!(matches!(
             ev,
-            VoiceEvent::SpeakingChanged { channel: ChannelId(99), user: UserId(7), speaking: true }
+            VoiceEvent::SpeakingChanged {
+                channel: ChannelId(99),
+                user: UserId(7),
+                speaking: true
+            }
         ));
     }
 }

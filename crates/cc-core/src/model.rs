@@ -100,7 +100,11 @@ mod tests {
         assert_eq!(VoiceKind::from_discord_type(2), Some(VoiceKind::Guild));
         assert_eq!(VoiceKind::from_discord_type(13), Some(VoiceKind::Stage));
         for t in [0u8, 1, 3, 4, 5, 11, 12, 14, 15] {
-            assert_eq!(VoiceKind::from_discord_type(t), None, "type {t} must not be voice");
+            assert_eq!(
+                VoiceKind::from_discord_type(t),
+                None,
+                "type {t} must not be voice"
+            );
         }
     }
 
@@ -109,7 +113,10 @@ mod tests {
         let mut a = Anchor::TopLeft;
         let mut seen = std::collections::HashSet::new();
         for _ in 0..8 {
-            assert!(seen.insert(a), "anchor cycle repeated {a:?} before visiting all 8");
+            assert!(
+                seen.insert(a),
+                "anchor cycle repeated {a:?} before visiting all 8"
+            );
             a = a.next();
         }
         assert_eq!(seen.len(), 8);

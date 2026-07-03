@@ -32,8 +32,15 @@ pub struct Step {
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum Screen {
     Closed,
-    Guilds { cursor: usize, loading: bool },
-    Channels { guild: GuildId, cursor: usize, loading: bool },
+    Guilds {
+        cursor: usize,
+        loading: bool,
+    },
+    Channels {
+        guild: GuildId,
+        cursor: usize,
+        loading: bool,
+    },
 }
 
 /// The live voice connection (the overlay's source of truth), independent of the
@@ -84,7 +91,10 @@ impl MenuEngine {
         match intent {
             InputIntent::Chord => {
                 if matches!(self.screen, Screen::Closed) {
-                    self.screen = Screen::Guilds { cursor: 0, loading: true };
+                    self.screen = Screen::Guilds {
+                        cursor: 0,
+                        loading: true,
+                    };
                     controls.push(InputControl::Grab);
                     cmds.push(DiscordCommand::ListGuilds);
                 } else {
@@ -98,10 +108,8 @@ impl MenuEngine {
             InputIntent::Back => self.back(&mut controls),
             InputIntent::Left => self.back(&mut controls),
             InputIntent::Right => self.confirm(&mut cmds, &mut controls),
-            InputIntent::AnchorCycle => {
-                if self.connection.is_some() {
-                    self.anchor = self.anchor.next();
-                }
+            InputIntent::AnchorCycle if self.connection.is_some() => {
+                self.anchor = self.anchor.next();
             }
             _ => {} // future intents: inert until handled
         }
@@ -134,15 +142,26 @@ impl MenuEngine {
 
     fn confirm(&mut self, cmds: &mut Vec<DiscordCommand>, controls: &mut Vec<InputControl>) {
         match self.screen.clone() {
-            Screen::Guilds { cursor, loading: false } => {
+            Screen::Guilds {
+                cursor,
+                loading: false,
+            } => {
                 if let Some(g) = self.guilds.get(cursor) {
                     let guild = g.id;
                     self.channels.clear();
-                    self.screen = Screen::Channels { guild, cursor: 0, loading: true };
+                    self.screen = Screen::Channels {
+                        guild,
+                        cursor: 0,
+                        loading: true,
+                    };
                     cmds.push(DiscordCommand::ListVoiceChannels { guild });
                 }
             }
-            Screen::Channels { guild, cursor, loading: false } => {
+            Screen::Channels {
+                guild,
+                cursor,
+                loading: false,
+            } => {
                 let rows = self.channel_rows(guild);
                 match rows.get(cursor) {
                     Some(ChannelRow::Leave) => {
@@ -182,7 +201,10 @@ impl MenuEngine {
     fn back(&mut self, controls: &mut Vec<InputControl>) {
         match &self.screen {
             Screen::Channels { .. } => {
-                self.screen = Screen::Guilds { cursor: 0, loading: self.guilds.is_empty() };
+                self.screen = Screen::Guilds {
+                    cursor: 0,
+                    loading: self.guilds.is_empty(),
+                };
             }
             Screen::Guilds { .. } => self.close_menu(controls),
             Screen::Closed => {}
@@ -201,7 +223,10 @@ impl MenuEngine {
                 }
             }
             DiscordEvent::VoiceChannels { guild, channels } => {
-                if let Screen::Channels { guild: g, loading, .. } = &mut self.screen {
+                if let Screen::Channels {
+                    guild: g, loading, ..
+                } = &mut self.screen
+                {
                     if *g == guild {
                         *loading = false;
                     }
@@ -216,7 +241,11 @@ impl MenuEngine {
                         .find(|c| c.id == channel)
                         .map(|c| c.name.clone())
                         .unwrap_or_default();
-                    self.connection = Some(Connection { channel, name, members: Vec::new() });
+                    self.connection = Some(Connection {
+                        channel,
+                        name,
+                        members: Vec::new(),
+                    });
                 } else if let Some(c) = &mut self.connection {
                     c.channel = channel;
                 }
@@ -229,7 +258,11 @@ impl MenuEngine {
                     }
                 }
             }
-            DiscordEvent::SpeakingChanged { channel, user, speaking } => {
+            DiscordEvent::SpeakingChanged {
+                channel,
+                user,
+                speaking,
+            } => {
                 if let Some(c) = &mut self.connection {
                     if c.channel == channel {
                         if let Some(m) = c.members.iter_mut().find(|m| m.user == user) {
@@ -261,11 +294,18 @@ impl MenuEngine {
     // ---- scene assembly ---------------------------------------------------
 
     fn step(&self, cmds: Vec<DiscordCommand>, controls: Vec<InputControl>) -> Step {
-        Step { cmds, controls, scene: self.scene() }
+        Step {
+            cmds,
+            controls,
+            scene: self.scene(),
+        }
     }
 
     fn scene(&self) -> Scene {
-        Scene { menu: self.menu_view(), overlay: self.overlay() }
+        Scene {
+            menu: self.menu_view(),
+            overlay: self.overlay(),
+        }
     }
 
     fn menu_view(&self) -> Option<MenuView> {
@@ -284,9 +324,15 @@ impl MenuEngine {
                         state: RowState::Normal,
                     })
                     .collect::<Vec<_>>();
-                Some(MenuView { title: "Servers".into(), selected: clamp_sel(*cursor, &rows), rows })
+                Some(MenuView {
+                    title: "Servers".into(),
+                    selected: clamp_sel(*cursor, &rows),
+                    rows,
+                })
             }
-            Screen::Channels { cursor, loading, .. } => {
+            Screen::Channels {
+                cursor, loading, ..
+            } => {
                 if *loading {
                     return Some(loading_view("Voice Channels"));
                 }
@@ -307,7 +353,11 @@ impl MenuEngine {
                     rows.push(Row {
                         label,
                         icon: None,
-                        state: if active { RowState::Active } else { RowState::Normal },
+                        state: if active {
+                            RowState::Active
+                        } else {
+                            RowState::Normal
+                        },
                     });
                 }
                 Some(MenuView {
@@ -322,7 +372,10 @@ impl MenuEngine {
     fn overlay(&self) -> Option<Overlay> {
         self.connection.as_ref().map(|c| Overlay {
             anchor: self.anchor,
-            roster: Roster { channel_name: c.name.clone(), members: c.members.clone() },
+            roster: Roster {
+                channel_name: c.name.clone(),
+                members: c.members.clone(),
+            },
         })
     }
 
@@ -348,7 +401,11 @@ enum ChannelRow {
 fn loading_view(title: &str) -> MenuView {
     MenuView {
         title: title.into(),
-        rows: vec![Row { label: "Loading…".into(), icon: None, state: RowState::Loading }],
+        rows: vec![Row {
+            label: "Loading…".into(),
+            icon: None,
+            state: RowState::Loading,
+        }],
         selected: 0,
     }
 }
