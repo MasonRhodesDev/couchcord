@@ -43,7 +43,11 @@ Discord ever being a focus-stealing window. Ships the couchcordd user daemon
 %{cargo_license} > LICENSE.dependencies
 
 %install
-%cargo_install
+# Not %%cargo_install: the workspace root is a virtual manifest (no root
+# [package]), and %%cargo_install hardcodes `cargo install --path .`, which
+# cargo rejects on virtual manifests. %%cargo_build (cargo-rpm-macros >= 24)
+# builds with the injected `rpm` profile, so the binary lands in target/rpm/.
+install -Dpm0755 target/rpm/couchcordd %{buildroot}%{_bindir}/couchcordd
 install -Dpm0644 dist/couchcordd.service %{buildroot}%{_userunitdir}/couchcordd.service
 
 %if %{with check}
