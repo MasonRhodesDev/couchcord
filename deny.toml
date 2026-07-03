@@ -1,0 +1,43 @@
+# cargo-deny configuration — supply-chain gate for a daemon that grabs input
+# devices and talks to Discord. Run locally with `cargo deny check`; CI runs
+# it on PRs, pushes, and weekly.
+
+[advisories]
+version = 2
+yanked = "deny"
+# Add RUSTSEC IDs here (with a justifying comment) only if an advisory is
+# confirmed not to affect us and a fix isn't yet available.
+ignore = []
+
+[licenses]
+version = 2
+# Permissive set actually present in the tree (see `cargo metadata`). The one
+# `... OR LGPL-2.1-or-later` dep is satisfied by its MIT/Apache alternative,
+# so LGPL is intentionally NOT allowed.
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Zlib",
+    "Unicode-3.0",
+    "Unlicense",
+    # webpki-roots (Mozilla CA bundle data, via reqwest/rustls).
+    "CDLA-Permissive-2.0",
+]
+confidence-threshold = 0.9
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+# The workspace's own cc-* crates are path deps with no version — that's a
+# "wildcard" to cargo-deny. Exempt local path deps; still catch a real
+# `foo = "*"` registry wildcard.
+allow-wildcard-paths = true
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
