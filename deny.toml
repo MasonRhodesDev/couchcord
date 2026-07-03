@@ -7,7 +7,9 @@ version = 2
 yanked = "deny"
 # Add RUSTSEC IDs here (with a justifying comment) only if an advisory is
 # confirmed not to affect us and a fix isn't yet available.
-ignore = []
+ignore = [
+    { id = "RUSTSEC-2026-0192", reason = "ttf-parser unmaintained; only parses local trusted fonts via the render stack" },
+]
 
 [licenses]
 version = 2

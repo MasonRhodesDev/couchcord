@@ -1,4 +1,5 @@
 [package]
+publish = false
 name = "cc-discord"
 version.workspace = true
 edition.workspace = true

@@ -9,7 +9,7 @@
 Name:           couchcord
 Version:        0.1.0
 Release:        1%{?dist}
-Summary:        Controller-driven Discord voice control + activity overlay for gamescope game mode
+Summary:        Controller-driven Discord overlay for gamescope sessions
 License:        MIT
 URL:            https://github.com/MasonRhodesDev/couchcord
 Source0:        %{url}/archive/v%{version}/%{name}-%{version}.tar.gz
