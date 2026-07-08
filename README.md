@@ -10,6 +10,45 @@ focus-stealing window**.
   synthesized by an adversarial design panel; proposals/critiques in
   [`docs/panel/`](docs/panel).
 
+The topology (per `ARCHITECTURE.md` §4): one binary, a `tokio::select!` reactor
+as composition root; every edge is a bounded per-producer→consumer `tokio::mpsc`
+with a named overflow policy — not a broadcast bus.
+
+```mermaid
+flowchart LR
+    subgraph ext["External"]
+        vkbd["Steam Input virtual keyboard<br/>/dev/input/eventN"]
+        sock["Discord client socket<br/>$XDG_RUNTIME_DIR/discord-ipc-0"]
+        cdn["Discord CDN<br/>cdn.discordapp.com"]
+        xsrv["gamescope nested X server"]
+    end
+
+    subgraph daemon["couchcordd — tokio select! reactor (composition root)"]
+        subgraph io["IO crates"]
+            input["cc-input<br/>evdev chord decode, RAII NavGuard"]
+            discord["cc-discord<br/>local-RPC async actor"]
+            render["cc-render<br/>x11rb overlay window, own thread"]
+            assets["cc-assets<br/>image cache, initials fallback"]
+        end
+        subgraph pure["Pure — zero IO"]
+            menu["cc-menu<br/>(State, Inbound) → (State, Vec&lt;Outbound&gt;, Scene)"]
+            core["cc-core — shared types + boundary traits"]
+        end
+        config["cc-config — TOML, ArcSwap snapshots<br/>(read via ConfigSource::current, not a channel)"]
+    end
+
+    vkbd -- "evdev read; grab/ungrab via NavGuard" --> input
+    input -- "InputIntent" --> menu
+    menu -- "InputControl grab/release" --> input
+    menu -- "DiscordCommand (never-drop)" --> discord
+    menu -- "Scene (coalesce-to-latest)" --> render
+    discord -- "DiscordEvent; SPEAKING → roster HUD repaint" --> menu
+    discord <-- "OAuth AUTHORIZE→AUTHENTICATE; GET_GUILDS / GET_CHANNELS /<br/>SELECT_VOICE_CHANNEL; SUBSCRIBE voice_state, speaking" --> sock
+    render -- "resolve(avatar hash)" --> assets
+    assets -- "HTTPS fetch" --> cdn
+    render -- "GAMESCOPE_EXTERNAL_OVERLAY atom" --> xsrv
+```
+
 ## Status
 
 | Phase | What | State |
