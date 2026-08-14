@@ -21,7 +21,7 @@ optdepends=(
   'gamescope: game-mode session providing the external-overlay atom'
 )
 source=("$pkgname-$pkgver.tar.gz::$url/archive/v$pkgver.tar.gz")
-sha256sums=('SKIP') # pin on release: updpkgsums
+sha256sums=('c68834e55baa75b0eb8215079f8e31a9d8721281e8c689706ac7a3cc6a2e1ee9')
 
 prepare() {
   cd "$pkgname-$pkgver"
