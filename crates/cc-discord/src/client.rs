@@ -70,6 +70,11 @@ impl DiscordRpc {
         format!("cc-{}", self.nonce.fetch_add(1, Ordering::Relaxed))
     }
 
+    /// Resolves when the IO actor has exited (socket closed or write failed).
+    pub async fn closed(&self) {
+        self.cmd_tx.closed().await;
+    }
+
     /// Send a framed command and await the matching-nonce reply's `data`.
     async fn request(&self, build: impl FnOnce(&str) -> Vec<u8>) -> Result<Value, RpcError> {
         let nonce = self.next_nonce();
@@ -254,7 +259,7 @@ async fn run_actor(
     // Reader loop task.
     let r_pending = Arc::clone(&pending);
     let r_events = events.clone();
-    let reader = tokio::spawn(async move {
+    let mut reader = tokio::spawn(async move {
         let mut buf: Vec<u8> = Vec::with_capacity(8192);
         let mut tmp = [0u8; 4096];
         loop {
@@ -282,19 +287,26 @@ async fn run_actor(
     });
 
     // Writer loop: take commands, register the nonce, write the frame.
-    while let Some(req) = cmd_rx.recv().await {
-        // op-0 handshake frames carry no nonce; correlate them synthetically.
-        let key = if is_handshake(&req.bytes) {
-            "__handshake__".to_string()
-        } else {
-            req.nonce.clone()
-        };
-        pending.lock().await.insert(key, req.reply);
-        let mut w = wr.lock().await;
-        if w.write_all(&req.bytes).await.is_err() {
-            break;
+    // Exit when the reader dies (socket EOF) so the reactor can reconnect.
+    loop {
+        tokio::select! {
+            _ = &mut reader => break,
+            maybe = cmd_rx.recv() => {
+                let Some(req) = maybe else { break };
+                // op-0 handshake frames carry no nonce; correlate them synthetically.
+                let key = if is_handshake(&req.bytes) {
+                    "__handshake__".to_string()
+                } else {
+                    req.nonce.clone()
+                };
+                pending.lock().await.insert(key, req.reply);
+                let mut w = wr.lock().await;
+                if w.write_all(&req.bytes).await.is_err() {
+                    break;
+                }
+                let _ = w.flush().await;
+            }
         }
-        let _ = w.flush().await;
     }
     reader.abort();
     Ok(())

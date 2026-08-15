@@ -81,7 +81,19 @@ pub fn run() -> ExitCode {
 // ---------------------------------------------------------------------------
 
 fn check_discord_ipc() -> Check {
-    let runtime = std::env::var("XDG_RUNTIME_DIR").unwrap_or_else(|_| "/run/user/1000".into());
+    let runtime = match std::env::var("XDG_RUNTIME_DIR") {
+        Ok(dir) if !dir.is_empty() => dir,
+        _ => {
+            return Check {
+                status: Status::Fail,
+                title: "Discord local RPC socket",
+                detail: "XDG_RUNTIME_DIR is not set".into(),
+                hint: Some(
+                    "run inside a user session so XDG_RUNTIME_DIR is set for this uid".into(),
+                ),
+            };
+        }
+    };
     // Discord uses discord-ipc-0 .. discord-ipc-9 (first free slot).
     let mut found = None;
     for n in 0..10 {
