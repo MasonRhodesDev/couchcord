@@ -63,7 +63,8 @@ couchcord: two manual steps remain —
   1. evdev access:   sudo usermod -aG input $USER   (then log out / back in)
   2. enable service: systemctl --user enable --now couchcordd
 Config: copy %{_docdir}/couchcord/config.toml.example to
-~/.config/couchcord/config.toml. See the packaged SETUP.md.
+$XDG_CONFIG_HOME/couchcord/config.toml (by default .config under your
+home directory). See the packaged SETUP.md.
 EOF
 fi
 
