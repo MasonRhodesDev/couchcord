@@ -19,6 +19,9 @@ makedepends=('cargo')
 optdepends=(
   'discord: the client the daemon controls over local RPC'
   'gamescope: game-mode session providing the external-overlay atom'
+  'flatpak: runs the Discord flatpak through game-mode-discord'
+  'python: Steam account detection in game-mode-discord'
+  'deck-tenant: per-Steam-account app homes that game-mode-discord defers to'
 )
 source=("$pkgname-$pkgver.tar.gz::$url/archive/v$pkgver.tar.gz")
 sha256sums=('c68834e55baa75b0eb8215079f8e31a9d8721281e8c689706ac7a3cc6a2e1ee9')
@@ -46,6 +49,11 @@ package() {
   cd "$pkgname-$pkgver"
   install -Dm755 target/release/couchcordd "$pkgdir/usr/bin/couchcordd"
   install -Dm644 dist/couchcordd.service "$pkgdir/usr/lib/systemd/user/couchcordd.service"
+  install -Dm755 dist/game-mode-discord "$pkgdir/usr/bin/game-mode-discord"
+  install -Dm644 dist/couchcord-autostart-guard.path \
+    "$pkgdir/usr/lib/systemd/user/couchcord-autostart-guard.path"
+  install -Dm644 dist/couchcord-autostart-guard.service \
+    "$pkgdir/usr/lib/systemd/user/couchcord-autostart-guard.service"
   install -Dm644 config.toml.example "$pkgdir/usr/share/doc/$pkgname/config.toml.example"
   install -Dm644 README.md "$pkgdir/usr/share/doc/$pkgname/README.md"
   install -Dm644 docs/SETUP.md "$pkgdir/usr/share/doc/$pkgname/SETUP.md"

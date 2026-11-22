@@ -1,0 +1,56 @@
+#!/bin/bash
+set -u
+
+FLATPAK_ID="com.discordapp.Discord"
+CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
+TENANT_APPS="$CONFIG_HOME/deck-tenant/apps.tsv"
+
+if command -v deck-tenant >/dev/null 2>&1 && [ -f "$TENANT_APPS" ]; then
+    wrapper=$(awk -F '\t' -v id="$FLATPAK_ID" '$1 == id { print $3; exit }' "$TENANT_APPS")
+    if [ -n "$wrapper" ] && [ -x "$wrapper" ]; then
+        exec "$wrapper" "$@"
+    fi
+fi
+
+uid=$(python3 - "${COUCHCORD_LOGINUSERS:-$HOME/.steam/steam/config/loginusers.vdf}" <<'PY' 2>/dev/null
+import re, sys
+try:
+    d = open(sys.argv[1], encoding='utf-8', errors='replace').read()
+except OSError:
+    raise SystemExit
+for m in re.finditer(r'"(\d{17})"\s*\{(.*?)\}', d, re.S):
+    if re.search(r'"MostRecent"\s*"1"', m.group(2)):
+        print(int(m.group(1)) - 76561197960265728)
+        break
+PY
+)
+[ -z "${uid:-}" ] && uid=default
+
+appdir="$HOME/.var/app/$FLATPAK_ID"
+profiles="$appdir/discord-profiles"
+mkdir -p "$profiles/$uid" "$appdir/config"
+
+marker="$profiles/.active-tenant"
+if [ -f "$marker" ] && [ "$(cat "$marker" 2>/dev/null)" != "$uid" ]; then
+    if flatpak ps --columns=application 2>/dev/null | grep -qx "$FLATPAK_ID"; then
+        flatpak kill "$FLATPAK_ID" 2>/dev/null
+        for _ in $(seq 1 20); do
+            flatpak ps --columns=application 2>/dev/null | grep -qx "$FLATPAK_ID" || break
+            sleep 0.5
+        done
+    fi
+fi
+printf '%s\n' "$uid" > "$marker"
+
+cur="$appdir/config/discord"
+if [ -e "$cur" ] && [ ! -L "$cur" ] && [ ! -e "$profiles/default" ]; then
+    mv "$cur" "$profiles/default"
+fi
+[ -e "$cur" ] && [ ! -L "$cur" ] && rm -rf "$cur"
+ln -sfn "$profiles/$uid" "$cur"
+
+flags=()
+if [ -f "$CONFIG_HOME/discord-flags.conf" ]; then
+    mapfile -t flags < <(grep -v '^\s*#' "$CONFIG_HOME/discord-flags.conf" | grep -v '^\s*$')
+fi
+exec flatpak run "$FLATPAK_ID" "${flags[@]}" "$@"

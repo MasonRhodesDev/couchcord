@@ -55,16 +55,17 @@ flowchart LR
 |---|---|---|
 | 0 | `couchcordd doctor` de-risk gate | ✅ gamescope external-overlay atom **verified** |
 | 1 | Pure core + all crate logic | ✅ unit-tested |
-| 2 | `cc-discord` RPC client (async actor) | ✅ code + **mock-socket test** |
+| 2 | `cc-discord` RPC client (async actor) | ✅ code + **mock-socket test**; READY handshake **verified** on a Steam Deck against the flatpak client; OAuth `AUTHORIZE`/`AUTHENTICATE` not wired yet |
 | 3 | `cc-input` evdev `InputSource` (grab + read) | ✅ code; live validation pending controller+game |
 | 4 | `cc-render` X11 overlay window + `cc-assets` CDN fetch | ✅ code; live validation pending session |
 | 5 | `couchcordd run` composes everything | ✅ **compiles + wired**; reactor mock-tested |
+| 6 | Deck bring-up: flatpak/snap socket discovery, inotify-driven reconnect for Discord and the Steam Input keyboard, `game-mode-discord` multi-tenant launcher, autostart guard units | ✅ code + tests; live validation pending on the Deck |
 
-**58 tests, whole workspace compiles, `couchcordd run` is fully composed.**
-Everything that is automatable is done. What remains is **live validation** — it
-needs you at the desk: Discord running (Phase 2 auth round-trip), and the
-controller + a game session (Phase 3/4 input + overlay). See
-[`docs/SETUP.md`](docs/SETUP.md).
+**71 tests, whole workspace compiles, `couchcordd run` is fully composed.**
+Everything that is automatable is done. What remains is **live validation**,
+which needs you at the desk with Discord running (Phase 2 voice commands), the
+controller and a game session (Phase 3/4 input and overlay), and a shared
+Deck for Phase 6. See [`docs/SETUP.md`](docs/SETUP.md).
 
 ## Crates (cargo workspace, compile-isolated)
 
@@ -112,9 +113,14 @@ sudo dnf install couchcord
 Then follow the one-time steps in [`docs/SETUP.md`](docs/SETUP.md) (`input`
 group, config, Steam Input layer, `systemctl --user enable --now couchcordd`).
 
+**Steam Deck / SteamOS** has a read-only root filesystem, so install into a
+user-level pacman root next to
+[deck-tenant](https://github.com/MasonRhodesDev/deck-tenant). See "Shared
+devices" in [`docs/SETUP.md`](docs/SETUP.md).
+
 ## Build & test (development)
 
 ```sh
-cargo test --workspace      # 58 tests, no hardware needed
+cargo test --workspace      # 71 tests, no hardware needed
 cargo run -p couchcordd -- doctor   # re-run inside a game-mode session to verify P2/P3 assumptions
 ```

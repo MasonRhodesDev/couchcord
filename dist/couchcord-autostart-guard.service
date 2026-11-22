@@ -1,0 +1,9 @@
+[Unit]
+Description=Reroute Discord's autostart entry through the multi-tenant launcher
+
+[Service]
+Type=oneshot
+ExecStart=/bin/sh -c 'f="%E/autostart/com.discordapp.Discord.desktop"; \
+  [ -f "$f" ] || exit 0; \
+  grep -qE "tenant-discord|game-mode-discord" "$f" && exit 0; \
+  sed -i "s|^Exec=.*|Exec=game-mode-discord|" "$f"'
