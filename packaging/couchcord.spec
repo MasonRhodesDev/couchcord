@@ -1,7 +1,7 @@
 # RPM spec for couchcord. Built in COPR from a local SRPM produced by
 # packaging/build-srpm.sh (source tarball from the git tag + vendored cargo
 # deps as Source1 — no rust-*-devel packages needed).
-# The test suite runs by default (58 tests across the workspace, no hardware
+# The test suite runs by default (71 tests across the workspace, no hardware
 # needed). Disable for a one-off build with --without check; COPR builds run
 # the suite.
 %bcond_without check
@@ -23,14 +23,17 @@ Requires:       systemd
 # gamescope external-overlay atom — both are runtime peers, not hard deps.
 Recommends:     discord
 Recommends:     gamescope
+Suggests:       flatpak
 
 %description
 couchcord is a controller-driven Discord voice control + activity overlay for
 a gamescope Big Picture / game-mode session: browse and join voice channels,
 leave, and see who's talking, from the couch, while a game runs, without
 Discord ever being a focus-stealing window. Ships the couchcordd user daemon
-(doctor + run subcommands). Configuration lives in
-~/.config/couchcord/config.toml (see the packaged config.toml.example).
+(doctor + run subcommands) and game-mode-discord, an optional launcher that
+keeps one Discord login per Steam account on shared devices. Configuration
+lives in ~/.config/couchcord/config.toml (see the packaged
+config.toml.example).
 
 %prep
 # -a1 unpacks the vendor tarball (vendor/ at its root) into the source dir.
@@ -49,6 +52,9 @@ Discord ever being a focus-stealing window. Ships the couchcordd user daemon
 # builds with the injected `rpm` profile, so the binary lands in target/rpm/.
 install -Dpm0755 target/rpm/couchcordd %{buildroot}%{_bindir}/couchcordd
 install -Dpm0644 dist/couchcordd.service %{buildroot}%{_userunitdir}/couchcordd.service
+install -Dpm0755 dist/game-mode-discord %{buildroot}%{_bindir}/game-mode-discord
+install -Dpm0644 dist/couchcord-autostart-guard.path %{buildroot}%{_userunitdir}/couchcord-autostart-guard.path
+install -Dpm0644 dist/couchcord-autostart-guard.service %{buildroot}%{_userunitdir}/couchcord-autostart-guard.service
 
 %if %{with check}
 %check
@@ -56,7 +62,7 @@ install -Dpm0644 dist/couchcordd.service %{buildroot}%{_userunitdir}/couchcordd.
 %endif
 
 %post
-%systemd_user_post couchcordd.service
+%systemd_user_post couchcordd.service couchcord-autostart-guard.path
 if [ $1 -eq 1 ]; then
     cat <<'EOF'
 couchcord: two manual steps remain —
@@ -69,7 +75,7 @@ EOF
 fi
 
 %preun
-%systemd_user_preun couchcordd.service
+%systemd_user_preun couchcordd.service couchcord-autostart-guard.path
 
 %postun
 %systemd_user_postun_with_restart couchcordd.service
@@ -78,7 +84,10 @@ fi
 %license LICENSE LICENSE.dependencies
 %doc README.md config.toml.example docs/SETUP.md
 %{_bindir}/couchcordd
+%{_bindir}/game-mode-discord
 %{_userunitdir}/couchcordd.service
+%{_userunitdir}/couchcord-autostart-guard.path
+%{_userunitdir}/couchcord-autostart-guard.service
 
 %changelog
 * Thu Jul 02 2026 Mason Rhodes <mrhodesdev@gmail.com> - 0.1.0-1

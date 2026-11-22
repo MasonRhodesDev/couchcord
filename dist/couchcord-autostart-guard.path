@@ -1,0 +1,9 @@
+[Unit]
+Description=Watch Discord's autostart entry and keep it multi-tenant
+
+[Path]
+PathChanged=%E/autostart/com.discordapp.Discord.desktop
+PathModified=%E/autostart/com.discordapp.Discord.desktop
+
+[Install]
+WantedBy=default.target
