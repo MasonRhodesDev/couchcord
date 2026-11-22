@@ -20,9 +20,12 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::UnixStream;
 use tokio::sync::{broadcast, mpsc, oneshot, Mutex};
+
+const REQUEST_TIMEOUT: Duration = Duration::from_secs(10);
 
 /// A pending command: write these bytes, expect a frame with this `nonce`.
 struct Request {
@@ -77,6 +80,14 @@ impl DiscordRpc {
 
     /// Send a framed command and await the matching-nonce reply's `data`.
     async fn request(&self, build: impl FnOnce(&str) -> Vec<u8>) -> Result<Value, RpcError> {
+        self.request_within(build, Some(REQUEST_TIMEOUT)).await
+    }
+
+    async fn request_within(
+        &self,
+        build: impl FnOnce(&str) -> Vec<u8>,
+        deadline: Option<Duration>,
+    ) -> Result<Value, RpcError> {
         let nonce = self.next_nonce();
         let bytes = build(&nonce);
         let (tx, rx) = oneshot::channel();
@@ -88,10 +99,13 @@ impl DiscordRpc {
             })
             .await
             .map_err(|_| RpcError::new("rpc actor gone"))?;
-        let reply = tokio::time::timeout(std::time::Duration::from_secs(10), rx)
-            .await
-            .map_err(|_| RpcError::new("rpc request timed out"))?
-            .map_err(|_| RpcError::new("rpc reply dropped"))?;
+        let reply = match deadline {
+            Some(deadline) => tokio::time::timeout(deadline, rx)
+                .await
+                .map_err(|_| RpcError::new("rpc request timed out"))?,
+            None => rx.await,
+        }
+        .map_err(|_| RpcError::new("rpc reply dropped"))?;
         if let Some(err) = reply.get("evt").and_then(Value::as_str) {
             if err == "ERROR" {
                 let msg = reply
@@ -112,7 +126,9 @@ impl RpcClient for DiscordRpc {
         // Handshake is op 0, no nonce — handled specially by the actor at start.
         // Here we (re)assert identity and read READY's user. The actor replies to
         // the synthetic "__handshake__" correlation.
-        let data = self.request(|_| protocol::handshake(app)).await?;
+        let data = self
+            .request_within(|_| protocol::handshake(app), None)
+            .await?;
         let uid = data
             .get("user")
             .and_then(|u| u.get("id"))
@@ -542,5 +558,34 @@ mod tests {
         assert!(DiscordRpc::connect_ipc(runtime.path(), vec![])
             .await
             .is_err());
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn handshake_waits_for_ready_without_a_deadline() {
+        let (client_side, mut server_side) = UnixStream::pair().unwrap();
+        let rpc = DiscordRpc::with_stream(client_side, vec![]);
+        let handshake = tokio::spawn(async move { rpc.connect(ClientId(1)).await });
+        tokio::time::sleep(REQUEST_TIMEOUT + Duration::from_millis(1)).await;
+        assert!(!handshake.is_finished());
+        let ready = json!({"cmd":"DISPATCH","evt":"READY","data":{"user":{"id":"4242"}}});
+        server_side
+            .write_all(&protocol::frame(OP_FRAME, &ready))
+            .await
+            .unwrap();
+        assert_eq!(handshake.await.unwrap().unwrap(), UserId(4242));
+    }
+
+    #[tokio::test]
+    async fn pending_handshake_fails_when_the_socket_closes() {
+        let (client_side, mut server_side) = UnixStream::pair().unwrap();
+        let rpc = DiscordRpc::with_stream(client_side, vec![]);
+        let handshake = tokio::spawn(async move { rpc.connect(ClientId(1)).await });
+        let mut sent = [0u8; 64];
+        assert!(server_side.read(&mut sent).await.unwrap() > 0);
+        drop(server_side);
+        let result = tokio::time::timeout(Duration::from_secs(5), handshake)
+            .await
+            .expect("a closed socket must end the handshake");
+        assert!(result.unwrap().is_err());
     }
 }
