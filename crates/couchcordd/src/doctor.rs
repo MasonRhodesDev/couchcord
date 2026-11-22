@@ -11,7 +11,7 @@
 
 use std::fs;
 use std::os::unix::net::UnixStream;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 enum Status {
@@ -94,17 +94,12 @@ fn check_discord_ipc() -> Check {
             };
         }
     };
-    // Discord uses discord-ipc-0 .. discord-ipc-9 (first free slot).
-    let mut found = None;
-    for n in 0..10 {
-        let path = PathBuf::from(&runtime).join(format!("discord-ipc-{n}"));
-        if path.exists() {
-            // Confirm it's a live, connectable socket, not a stale node.
+    let found = cc_discord::ipc_socket_paths(Path::new(&runtime))
+        .find(|path| path.exists())
+        .map(|path| {
             let connectable = UnixStream::connect(&path).is_ok();
-            found = Some((path, connectable));
-            break;
-        }
-    }
+            (path, connectable)
+        });
     match found {
         Some((path, true)) => Check {
             status: Status::Ok,

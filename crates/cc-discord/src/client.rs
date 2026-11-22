@@ -17,7 +17,7 @@ use cc_core::{
 use futures_core::stream::BoxStream;
 use serde_json::Value;
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -41,10 +41,10 @@ pub struct DiscordRpc {
 }
 
 impl DiscordRpc {
-    /// Connect to the first available `discord-ipc-N` socket under
-    /// `$XDG_RUNTIME_DIR` and spawn the IO actor. Returns the handle.
-    pub async fn connect_ipc(accept: Vec<VoiceKind>) -> Result<Self, RpcError> {
-        let stream = open_ipc().await?;
+    /// Connect to the first available `discord-ipc-N` socket under `runtime`
+    /// and spawn the IO actor. Returns the handle.
+    pub async fn connect_ipc(runtime: &Path, accept: Vec<VoiceKind>) -> Result<Self, RpcError> {
+        let stream = open_ipc(runtime).await?;
         Ok(Self::with_stream(stream, accept))
     }
 
@@ -225,12 +225,19 @@ impl<T> Yielder<T> {
     }
 }
 
+pub const IPC_DIRS: [&str; 3] = ["", "app/com.discordapp.Discord", "snap.discord"];
+
+pub fn ipc_dirs(runtime: &Path) -> impl Iterator<Item = PathBuf> + '_ {
+    IPC_DIRS.iter().map(move |dir| runtime.join(dir))
+}
+
+pub fn ipc_socket_paths(runtime: &Path) -> impl Iterator<Item = PathBuf> + '_ {
+    ipc_dirs(runtime).flat_map(|dir| (0..10).map(move |n| dir.join(format!("discord-ipc-{n}"))))
+}
+
 /// Open the first live `discord-ipc-N` socket.
-async fn open_ipc() -> Result<UnixStream, RpcError> {
-    let runtime =
-        std::env::var("XDG_RUNTIME_DIR").map_err(|_| RpcError::new("XDG_RUNTIME_DIR not set"))?;
-    for n in 0..10 {
-        let path = PathBuf::from(&runtime).join(format!("discord-ipc-{n}"));
+async fn open_ipc(runtime: &Path) -> Result<UnixStream, RpcError> {
+    for path in ipc_socket_paths(runtime) {
         if path.exists() {
             if let Ok(s) = UnixStream::connect(&path).await {
                 return Ok(s);
@@ -513,5 +520,27 @@ mod tests {
                 speaking: true
             }
         ));
+    }
+
+    #[tokio::test]
+    async fn connects_to_the_flatpak_socket_export() {
+        let runtime = tempfile::tempdir().unwrap();
+        let dir = runtime.path().join("app/com.discordapp.Discord");
+        std::fs::create_dir_all(&dir).unwrap();
+        let _listener = tokio::net::UnixListener::bind(dir.join("discord-ipc-0")).unwrap();
+        assert!(DiscordRpc::connect_ipc(runtime.path(), vec![])
+            .await
+            .is_ok());
+    }
+
+    #[tokio::test]
+    async fn skips_a_stale_socket_node() {
+        let runtime = tempfile::tempdir().unwrap();
+        let stale = runtime.path().join("discord-ipc-0");
+        drop(std::os::unix::net::UnixListener::bind(&stale).unwrap());
+        assert!(stale.exists());
+        assert!(DiscordRpc::connect_ipc(runtime.path(), vec![])
+            .await
+            .is_err());
     }
 }

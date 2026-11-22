@@ -12,6 +12,7 @@ use cc_input::EvdevInput;
 use cc_menu::MenuEngine;
 use cc_render::X11Overlay;
 use futures_util::StreamExt;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::mpsc;
@@ -29,10 +30,14 @@ pub async fn run_live() -> anyhow::Result<()> {
     let cfg =
         cc_config::load(&path).map_err(|e| anyhow::anyhow!("config ({}): {e}", path.display()))?;
     let settings: Arc<dyn ConfigSource> = Arc::new(Settings::new(cfg.clone(), Some(path)));
+    let runtime = std::env::var_os("XDG_RUNTIME_DIR")
+        .filter(|dir| !dir.is_empty())
+        .map(PathBuf::from)
+        .ok_or_else(|| anyhow::anyhow!("XDG_RUNTIME_DIR is not set"))?;
 
     let mut delay = BACKOFF_START;
     loop {
-        match run_session(&cfg, settings.clone()).await {
+        match run_session(&runtime, &cfg, settings.clone()).await {
             Ok(()) => {
                 delay = BACKOFF_START;
                 tracing::warn!("evdev ended; reconnecting in {delay:?}");
@@ -48,8 +53,12 @@ pub async fn run_live() -> anyhow::Result<()> {
 
 /// One connected session. Returns `Ok` when the evdev stream ends; `Err` on
 /// RPC connect/close or evdev open failure so the outer loop can rediscover.
-async fn run_session(cfg: &Config, settings: Arc<dyn ConfigSource>) -> anyhow::Result<()> {
-    let rpc = DiscordRpc::connect_ipc(cfg.voice_kinds.clone())
+async fn run_session(
+    runtime: &Path,
+    cfg: &Config,
+    settings: Arc<dyn ConfigSource>,
+) -> anyhow::Result<()> {
+    let rpc = DiscordRpc::connect_ipc(runtime, cfg.voice_kinds.clone())
         .await
         .map_err(|e| anyhow::anyhow!("discord ipc: {e}"))?;
     let user = rpc
