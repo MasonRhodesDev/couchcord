@@ -246,6 +246,7 @@ dependencies = [
  "cc-render",
  "evdev",
  "futures-util",
+ "tempfile",
  "tokio",
  "tracing",
  "tracing-subscriber",

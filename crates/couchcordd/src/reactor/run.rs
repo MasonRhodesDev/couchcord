@@ -34,6 +34,10 @@ pub async fn run_live() -> anyhow::Result<()> {
         .filter(|dir| !dir.is_empty())
         .map(PathBuf::from)
         .ok_or_else(|| anyhow::anyhow!("XDG_RUNTIME_DIR is not set"))?;
+    match crate::tenant::loginusers_path().and_then(|p| crate::tenant::active_account(&p)) {
+        Some(account) => tracing::info!("active Steam account {}", account.0),
+        None => tracing::info!("no Steam login found"),
+    }
 
     let mut delay = BACKOFF_START;
     loop {
